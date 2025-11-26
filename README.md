@@ -1,4 +1,4 @@
-# FAQ JSON-LD Manager (Enterprise, queue-enabled)
+# FAQ JSON-LD Manager
 
 A WordPress plugin to manage FAQ items as a custom post type (CPT) and inject FAQ JSON-LD into posts/pages. Designed for performance and scalability with advanced cache management, background queueing, and admin/CLI tools.
 
