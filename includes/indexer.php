@@ -65,7 +65,6 @@ function fqj_rebuild_index_for_faq($faq_id)
     fqj_delete_mappings_for_faq($faq_id);
 
     $payload_json = get_post_meta($faq_id, 'fqj_assoc_data_json', true);
-    $assoc_type = get_post_meta($faq_id, 'fqj_assoc_type', true) ?: 'urls';
     $payload = $payload_json ? json_decode($payload_json, true) : [];
 
     $mappings = [];
@@ -107,25 +106,21 @@ function fqj_rebuild_index_for_faq($faq_id)
         fqj_insert_mappings($faq_id, $mappings);
     }
 
-    // Invalidate affected posts' transients
-    fqj_invalidate_transients_for_mappings($mappings);
+    // Enqueue affected posts for background invalidation
+    fqj_enqueue_invalidation_for_mappings($mappings);
 }
 
 /**
- * Delete transients for posts affected by mapping rows.
- * For 'post' rows: delete that post transient
- * For 'post_type' rows: fetch posts in batches and delete transients
- * For 'term' rows: fetch posts having the term and delete in batches
- * For 'url' rows: try url_to_postid and delete that post transient if found
- * For 'global' rows: purge all transients (conservative)
+ * Resolve mappings to post IDs and enqueue them for invalidation using the background queue.
+ * This function does not synchronously delete transients; it pushes affected IDs to the queue.
  */
-function fqj_invalidate_transients_for_mappings($mappings)
+function fqj_enqueue_invalidation_for_mappings($mappings)
 {
-    // read settings
-    $opts = get_option(FQJ_OPTION_KEY);
-    $batch_size = isset($opts['batch_size']) ? intval($opts['batch_size']) : 500;
+    if (empty($mappings)) {
+        return;
+    }
 
-    $post_ids_to_delete = [];
+    $post_ids_to_enqueue = [];
     $post_types_to_process = [];
     $terms_to_process = [];
     $must_purge_all = false;
@@ -133,12 +128,12 @@ function fqj_invalidate_transients_for_mappings($mappings)
     foreach ($mappings as $m) {
         switch ($m['type']) {
             case 'post':
-                $post_ids_to_delete[] = intval($m['value']);
+                $post_ids_to_enqueue[] = intval($m['value']);
                 break;
             case 'url':
                 $pid = url_to_postid($m['value']);
                 if ($pid) {
-                    $post_ids_to_delete[] = intval($pid);
+                    $post_ids_to_enqueue[] = intval($pid);
                 }
                 break;
             case 'post_type':
@@ -153,13 +148,16 @@ function fqj_invalidate_transients_for_mappings($mappings)
         }
     }
 
-    // delete direct post transients
-    foreach ($post_ids_to_delete as $pid) {
-        delete_transient('fqj_faq_json_'.$pid);
+    // Enqueue direct post IDs
+    if (! empty($post_ids_to_enqueue)) {
+        fqj_queue_add_posts($post_ids_to_enqueue);
     }
 
-    // process post_types in batches
+    // Enqueue posts of post types (in batches, gather ids)
     if (! empty($post_types_to_process)) {
+        $opts = get_option(FQJ_OPTION_KEY);
+        $batch_size = isset($opts['batch_size']) ? intval($opts['batch_size']) : 500;
+
         foreach ($post_types_to_process as $pt) {
             $paged = 1;
             while (true) {
@@ -174,9 +172,7 @@ function fqj_invalidate_transients_for_mappings($mappings)
                 if (! $q->have_posts()) {
                     break;
                 }
-                foreach ($q->posts as $id) {
-                    delete_transient('fqj_faq_json_'.$id);
-                }
+                fqj_queue_add_posts($q->posts);
                 wp_reset_postdata();
                 if (count($q->posts) < $batch_size) {
                     break;
@@ -186,32 +182,37 @@ function fqj_invalidate_transients_for_mappings($mappings)
         }
     }
 
-    // process terms in batches
+    // Enqueue posts tagged with terms
     if (! empty($terms_to_process)) {
+        $opts = get_option(FQJ_OPTION_KEY);
+        $batch_size = isset($opts['batch_size']) ? intval($opts['batch_size']) : 500;
+
         foreach ($terms_to_process as $term_id) {
-            $args = [
-                'post_type' => 'any',
-                'posts_per_page' => $batch_size,
-                'tax_query' => [
-                    [
-                        'taxonomy' => get_term($term_id)->taxonomy,
-                        'terms' => $term_id,
-                        'field' => 'term_id',
-                    ],
-                ],
-                'fields' => 'ids',
-                'paged' => 1,
-            ];
+            $term = get_term($term_id);
+            if (! $term || is_wp_error($term)) {
+                continue;
+            }
+
             $paged = 1;
             while (true) {
-                $args['paged'] = $paged;
+                $args = [
+                    'post_type' => 'any',
+                    'posts_per_page' => $batch_size,
+                    'paged' => $paged,
+                    'fields' => 'ids',
+                    'tax_query' => [
+                        [
+                            'taxonomy' => $term->taxonomy,
+                            'terms' => $term_id,
+                            'field' => 'term_id',
+                        ],
+                    ],
+                ];
                 $q = new WP_Query($args);
                 if (! $q->have_posts()) {
                     break;
                 }
-                foreach ($q->posts as $id) {
-                    delete_transient('fqj_faq_json_'.$id);
-                }
+                fqj_queue_add_posts($q->posts);
                 wp_reset_postdata();
                 if (count($q->posts) < $batch_size) {
                     break;
@@ -221,38 +222,8 @@ function fqj_invalidate_transients_for_mappings($mappings)
         }
     }
 
-    // global: purge all transients selectively
+    // For global, do a full purge (we can't reasonably enqueue all posts efficiently here)
     if ($must_purge_all) {
         fqj_purge_all_faq_transients();
     }
 }
-
-/**
- * Hook: on faq_item save, rebuild index
- * Note: ensure we don't loop excessively — only run for faq_item type
- */
-function fqj_on_faq_save_reindex($post_id, $post, $update)
-{
-    if ($post->post_type !== 'faq_item') {
-        return;
-    }
-
-    // Rebuild index for this FAQ
-    fqj_rebuild_index_for_faq($post_id);
-
-    // Also delete the faq_item specific transient (if any)
-    delete_transient('fqj_faq_item_'.$post_id);
-}
-add_action('save_post', 'fqj_on_faq_save_reindex', 20, 3);
-
-/**
- * When a regular post is updated, delete its cached transient so it will be rebuilt
- */
-function fqj_on_content_save_invalidate($post_id, $post, $update)
-{
-    if ($post->post_type === 'faq_item') {
-        return;
-    }
-    delete_transient('fqj_faq_json_'.$post_id);
-}
-add_action('save_post', 'fqj_on_content_save_invalidate', 30, 3);

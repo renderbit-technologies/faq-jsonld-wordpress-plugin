@@ -1,10 +1,10 @@
 <?php
 
 /**
- * Plugin Name: FAQ JSON-LD Manager (Enterprise)
+ * Plugin Name: FAQ JSON-LD Manager (Enterprise, queue-enabled)
  * Plugin URI:  https://example.com
- * Description: Manage FAQ items as CPT and inject FAQ JSON-LD. Uses a custom mapping table (fast), per-post transient caching, settings UI, batched invalidation and WP-CLI tools.
- * Version:     2.0.0
+ * Description: Manage FAQ items as CPT and inject FAQ JSON-LD. Uses a custom mapping table (fast), per-post transient caching, background invalidation queue (WP-Cron), settings UI and WP-CLI tools.
+ * Version:     2.1.0
  * Author:      Renderbit / Soham
  * License:     GPLv2+
  *
@@ -18,12 +18,14 @@ define('FQJ_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('FQJ_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('FQJ_DB_TABLE', $GLOBALS['wpdb']->prefix.'fqj_mappings');
 define('FQJ_OPTION_KEY', 'fqj_settings');
+define('FQJ_IMPORT_DOCX', '/mnt/data/FAQs section content.docx'); // user-uploaded docx path (for importers)
 
 /**
  * Autoload includes
  */
 require_once FQJ_PLUGIN_DIR.'includes/settings.php';
 require_once FQJ_PLUGIN_DIR.'includes/indexer.php';
+require_once FQJ_PLUGIN_DIR.'includes/queue.php';
 require_once FQJ_PLUGIN_DIR.'includes/admin.php';
 require_once FQJ_PLUGIN_DIR.'includes/frontend.php';
 require_once FQJ_PLUGIN_DIR.'includes/wpcli.php';
@@ -61,7 +63,7 @@ function fqj_register_cpt_faq_item()
 add_action('init', 'fqj_register_cpt_faq_item');
 
 /**
- * Activation: create DB table and set defaults
+ * Activation: create DB table, defaults, schedule cron
  */
 function fqj_activate()
 {
@@ -69,32 +71,30 @@ function fqj_activate()
 
     $defaults = [
         'cache_ttl' => 12 * HOUR_IN_SECONDS,
-        'batch_size' => 500,            // default batch size for invalidation
-        'output_type' => 'faqsection',   // 'faqsection' or 'faqpage'
+        'batch_size' => 500,
+        'output_type' => 'faqsection',
+        'queue_cron_interval' => 'fqj_five_minutes', // interval name
     ];
-    if (! get_option(FQJ_OPTION_KEY)) {
-        add_option(FQJ_OPTION_KEY, $defaults);
-    } else {
-        // ensure keys exist
-        $opts = get_option(FQJ_OPTION_KEY);
-        $opts = wp_parse_args($opts, $defaults);
-        update_option(FQJ_OPTION_KEY, $opts);
+    $opts = get_option(FQJ_OPTION_KEY, []);
+    $opts = wp_parse_args($opts, $defaults);
+    update_option(FQJ_OPTION_KEY, $opts);
+
+    // schedule cron if not scheduled
+    if (! wp_next_scheduled('fqj_process_invalidation_queue')) {
+        // Use a custom interval 'fqj_five_minutes' registered in queue.php
+        wp_schedule_event(time() + 60, 'fqj_five_minutes', 'fqj_process_invalidation_queue');
     }
 }
 register_activation_hook(__FILE__, 'fqj_activate');
 
 /**
- * Deactivation: currently no destructive changes; transients left alone for safety
+ * Deactivation: clear cron
  */
 function fqj_deactivate()
 {
-    // nothing destructive by default
+    $timestamp = wp_next_scheduled('fqj_process_invalidation_queue');
+    if ($timestamp) {
+        wp_unschedule_event($timestamp, 'fqj_process_invalidation_queue');
+    }
 }
 register_deactivation_hook(__FILE__, 'fqj_deactivate');
-
-/**
- * Uninstall: optional cleanup handled by uninstall.php (if present)
- */
-if (file_exists(FQJ_PLUGIN_DIR.'uninstall.php')) {
-    // uninstall handled via uninstall.php
-}
