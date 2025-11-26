@@ -20,9 +20,6 @@ desktop.ini
 # Ignore build artifacts and vendor
 node_modules/
 vendor/
-composer.lock
-package-lock.json
-yarn.lock
 
 # Ignore log and environment files
 *.log

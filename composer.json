@@ -24,5 +24,10 @@
   },
   "extra": {
     "installer-name": "faq-jsonld"
+  },
+  "config": {
+    "allow-plugins": {
+      "composer/installers": true
+    }
   }
 }
