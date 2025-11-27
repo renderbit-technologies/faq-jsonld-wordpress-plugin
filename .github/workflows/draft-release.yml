@@ -1,0 +1,39 @@
+name: Draft Release on Tag
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  draft-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get tag version
+        id: get_tag
+        run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+
+      - name: Install Composer dependencies
+        run: composer install --no-dev --prefer-dist --no-progress
+
+      - name: Build plugin zip
+        run: composer build-zip
+
+      - name: Create GitHub Release (draft) and upload zip
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          name: Release ${{ env.TAG_NAME }}
+          draft: true
+          generate_release_notes: true
+          files: faq-jsonld.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
