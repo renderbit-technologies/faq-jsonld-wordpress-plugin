@@ -36,3 +36,9 @@ vendor/
 .idea/
 .sass-cache/
 .cache/
+
+# Test output
+.phpunit.result.cache
+.phpunit.cache/
+coverage/
+coverage.xml

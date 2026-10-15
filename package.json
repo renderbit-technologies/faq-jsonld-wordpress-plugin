@@ -1,0 +1,23 @@
+{
+  "name": "faq-jsonld",
+  "private": true,
+  "description": "Tests for the FAQ JSON-LD admin scripts.",
+  "license": "GPL-2.0-or-later",
+  "scripts": {
+    "test": "jest"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "roots": [
+      "<rootDir>/tests/js"
+    ],
+    "collectCoverageFrom": [
+      "assets/js/**/*.js"
+    ]
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "jquery": "^3.7.1"
+  }
+}
