@@ -4,7 +4,7 @@
  * Plugin URI:  https://github.com/renderbit-technologies/faq-jsonld-wordpress-plugin
  * Description: Manage FAQ items as CPT and inject FAQ JSON-LD. Uses a custom mapping table (fast), per-post
  *              transient caching, background invalidation queue (WP-Cron), settings UI and WP-CLI tools.
- * Version:     2.1.0
+ * Version:     2.2.0
  * Author:      Renderbit Technologies
  * License:     GPLv2+
  *
