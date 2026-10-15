@@ -24,7 +24,6 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 function fqj_add_cron_interval( $schedules ) {
 	if ( ! isset( $schedules['fqj_five_minutes'] ) ) {
-		// phpcs:ignore WordPress.WP.CronInterval.CronSchedulesInterval
 		$schedules['fqj_five_minutes'] = array(
 			'interval' => 5 * MINUTE_IN_SECONDS,
 			'display'  => 'Every 5 Minutes',
@@ -33,6 +32,7 @@ function fqj_add_cron_interval( $schedules ) {
 
 	return $schedules;
 }
+// phpcs:ignore WordPress.WP.CronInterval.CronSchedulesInterval -- the queue is meant to drain every 5 minutes.
 add_filter( 'cron_schedules', 'fqj_add_cron_interval' );
 
 /**
