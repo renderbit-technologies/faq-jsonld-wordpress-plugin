@@ -30,7 +30,7 @@ class Test_FQJ_Cli extends FQJ_TestCase {
 	 */
 	protected function last_success() {
 		$success = array_filter(
-			WP_CLI::$messages,
+			WP_CLI::get_messages(),
 			function ( $m ) {
 				return 'success' === $m[0];
 			}
@@ -41,7 +41,7 @@ class Test_FQJ_Cli extends FQJ_TestCase {
 	}
 
 	public function test_command_is_registered() {
-		$this->assertSame( 'FQJ\FqjCli', WP_CLI::$commands['fqj'] );
+		$this->assertSame( 'FQJ\FqjCli', WP_CLI::get_command( 'fqj' ) );
 	}
 
 	public function test_purge_transients_reports_count() {

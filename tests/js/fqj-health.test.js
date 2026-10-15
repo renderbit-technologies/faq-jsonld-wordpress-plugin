@@ -1,6 +1,9 @@
 const { loadScript, fakeRequest } = require("./helpers");
 
-const SCRIPT = "assets/js/fqj-health.js";
+const loadHealth = () => require("../../assets/js/fqj-health.js");
+
+// 2023-11-14 22:13:20 UTC, in seconds like the PHP side sends.
+const LAST_RUN = Date.UTC(2023, 10, 14, 22, 13, 20) / 1000;
 
 function renderPage() {
   document.body.innerHTML = `
@@ -17,7 +20,7 @@ async function boot(requestOptions) {
   renderPage();
   window.fqjHealth = { ajax_url: "/wp-admin/admin-ajax.php", nonce: "n0nce" };
   const post = fakeRequest(requestOptions);
-  const $ = await loadScript(SCRIPT, (jq) => {
+  const $ = await loadScript(loadHealth, (jq) => {
     jq.post = post;
   });
   return { $, post };
@@ -47,7 +50,7 @@ describe("process queue now", () => {
     const { post } = await boot({
       response: {
         success: true,
-        data: { processed: 5, queue_len: 2, last_run: 1700000000 },
+        data: { processed: 5, queue_len: 2, last_run: LAST_RUN },
       },
     });
 
@@ -61,7 +64,7 @@ describe("process queue now", () => {
     );
     expect(text("fqj-queue-count")).toBe("2");
     expect(text("fqj-last-run")).toBe(
-      new Date(1700000000 * 1000).toLocaleString()
+      new Date(LAST_RUN * 1000).toLocaleString()
     );
     expect(text("fqj-action-status")).toBe("Processed 5 items.");
   });

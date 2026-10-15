@@ -60,6 +60,25 @@ if ( ! class_exists( 'WP_CLI' ) ) {
 		}
 
 		/**
+		 * Handler registered for a command.
+		 *
+		 * @param string $name Command name.
+		 * @return mixed|null
+		 */
+		public static function get_command( $name ) {
+			return isset( self::$commands[ $name ] ) ? self::$commands[ $name ] : null;
+		}
+
+		/**
+		 * Recorded messages.
+		 *
+		 * @return array
+		 */
+		public static function get_messages() {
+			return self::$messages;
+		}
+
+		/**
 		 * Clear recorded messages.
 		 */
 		public static function reset() {

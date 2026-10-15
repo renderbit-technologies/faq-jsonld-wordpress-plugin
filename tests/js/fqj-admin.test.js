@@ -1,22 +1,24 @@
 const { loadScript, fakeRequest } = require("./helpers");
 
-const SCRIPT = "assets/js/fqj-admin.js";
+const loadAdmin = () => require("../../assets/js/fqj-admin.js");
 
 function renderMetaBox(type, data) {
   const types = ["urls", "posts", "post_types", "tax_terms", "global", "other"];
-  document.body.innerHTML = `
-    <select id="fqj_assoc_type">
-      ${types
-        .map(
-          (t) =>
-            `<option value="${t}"${t === type ? " selected" : ""}>${t}</option>`
-        )
-        .join("")}
-    </select>
-    <input type="hidden" id="fqj_assoc_data" value="">
-    <div id="fqj_assoc_container"></div>`;
-  document.getElementById("fqj_assoc_data").value =
-    typeof data === "string" ? data : JSON.stringify(data || {});
+  document.body.replaceChildren();
+
+  const select = document.createElement("select");
+  select.id = "fqj_assoc_type";
+  types.forEach((t) => select.append(new Option(t, t, false, t === type)));
+
+  const hidden = document.createElement("input");
+  hidden.type = "hidden";
+  hidden.id = "fqj_assoc_data";
+  hidden.value = typeof data === "string" ? data : JSON.stringify(data || {});
+
+  const container = document.createElement("div");
+  container.id = "fqj_assoc_container";
+
+  document.body.append(select, hidden, container);
 }
 
 /** Load the script with select2 and $.get stubbed. */
@@ -33,7 +35,7 @@ async function boot(type, data, getResponse) {
   });
   const get = fakeRequest({ response: getResponse });
 
-  const $ = await loadScript(SCRIPT, (jq) => {
+  const $ = await loadScript(loadAdmin, (jq) => {
     jq.fn.select2 = select2;
     jq.get = get;
   });

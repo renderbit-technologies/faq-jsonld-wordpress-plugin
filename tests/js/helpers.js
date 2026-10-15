@@ -1,11 +1,10 @@
-const path = require("path");
-
 /**
  * Load a fresh jQuery, expose it globally, and run a plugin script against the
- * current document. `setup($)` runs first so tests can stub jQuery methods.
- * Resolves once jQuery's ready callbacks have fired.
+ * current document. `load()` must require() the script; `setup($)` runs first
+ * so tests can stub jQuery methods. Resolves once jQuery's ready callbacks
+ * have fired.
  */
-async function loadScript(relativePath, setup = () => {}) {
+async function loadScript(load, setup = () => {}) {
   let $;
   jest.isolateModules(() => {
     $ = require("jquery");
@@ -14,9 +13,7 @@ async function loadScript(relativePath, setup = () => {}) {
   setup($);
 
   // require() (not eval) so Jest can collect coverage for the script.
-  jest.isolateModules(() => {
-    require(path.join(__dirname, "..", "..", relativePath));
-  });
+  jest.isolateModules(load);
 
   await flush();
   return $;
