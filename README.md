@@ -3,7 +3,7 @@
 ![WordPress Plugin](https://img.shields.io/badge/WordPress-Plugin-21759B?logo=wordpress&logoColor=fff)
 ![PHP](https://img.shields.io/badge/PHP-%E2%89%A5%207.2-777BB4?logo=php&logoColor=fff)
 ![MySQL](https://img.shields.io/badge/MySQL-Mapping%20Table-4479A1?logo=mysql&logoColor=fff)
-![WP-Cron](https://img.shields.io/badge/Background-Queue%20%28WP-Cron%29-orange)
+![WP-Cron](https://img.shields.io/badge/Background-WP--Cron%20Queue-orange)
 ![WP-CLI](https://img.shields.io/badge/CLI-WP--CLI-21759B?logo=wordpress&logoColor=fff)
 ![Select2](https://img.shields.io/badge/Admin-Select2-e535ab)
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](LICENSE.md)
