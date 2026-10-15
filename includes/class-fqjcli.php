@@ -27,7 +27,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		 * @param array $args       Positional arguments.
 		 * @param array $assoc_args Associative arguments.
 		 */
-		public function purge_transients( $args, $assoc_args ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found
+		public function purge_transients( $args, $assoc_args ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter
 			global $wpdb;
 			WP_CLI::log( 'Searching transients...' );
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -64,7 +64,7 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		 * @param array $args       Positional arguments.
 		 * @param array $assoc_args Associative arguments.
 		 */
-		public function queue_info( $args, $assoc_args ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found
+		public function queue_info( $args, $assoc_args ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter
 			$len = fqj_queue_length();
 			WP_CLI::success( "Queue length: {$len}" );
 		}
