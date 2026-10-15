@@ -51,7 +51,9 @@ Pull requests and issues are welcome. Please follow project conventions and revi
 
 ## License
 
-GPLv2+
+This project is licensed under the GNU General Public License v2.0 or later — see the [LICENSE.md](LICENSE.md) file for details.
+
+SPDX-License-Identifier: `GPL-2.0-or-later`
 
 ---
 
