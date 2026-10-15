@@ -71,6 +71,20 @@ function fqj_delete_mappings_for_faq( $faq_id ) {
 }
 
 /**
+ * Normalize a URL for mapping storage and lookup: drop query string/fragment and trailing slash.
+ *
+ * Index and frontend lookup must use the same shape since mappings are compared with exact `=`.
+ *
+ * @param string $url The URL.
+ * @return string
+ */
+function fqj_normalize_url( $url ) {
+	$url = strtok( (string) $url, '?#' );
+
+	return false === $url ? '' : rtrim( $url, '/' );
+}
+
+/**
  * Build mapping rows from saved payload and index them
  * payload is array with keys 'urls', 'posts', 'post_types', 'terms', 'global'
  *
@@ -82,6 +96,9 @@ function fqj_rebuild_index_for_faq( $faq_id ) {
 
 	$payload_json = get_post_meta( $faq_id, 'fqj_assoc_data_json', true );
 	$payload      = $payload_json ? json_decode( $payload_json, true ) : array();
+	if ( ! is_array( $payload ) ) {
+		$payload = array();
+	}
 
 	$mappings = array();
 
@@ -89,7 +106,7 @@ function fqj_rebuild_index_for_faq( $faq_id ) {
 		foreach ( $payload['urls'] as $u ) {
 			$mappings[] = array(
 				'type'  => 'url',
-				'value' => $u,
+				'value' => fqj_normalize_url( $u ),
 			);
 			// also map internal URLs to post IDs for faster lookup.
 			$pid = url_to_postid( $u );

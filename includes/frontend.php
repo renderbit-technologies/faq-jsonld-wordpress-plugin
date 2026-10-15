@@ -63,23 +63,31 @@ function fqj_maybe_print_faq_jsonld() {
 		);
 	}
 
-	// Terms.
-	$terms = wp_get_post_terms( $current_id );
-	if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
-		foreach ( $terms as $t ) {
+	// Terms across every taxonomy registered for this post type (defaults to post_tag only otherwise).
+	$taxonomies = $pt ? get_object_taxonomies( $pt ) : array();
+	$term_ids   = $taxonomies ? wp_get_object_terms( $current_id, $taxonomies, array( 'fields' => 'ids' ) ) : array();
+	if ( ! is_wp_error( $term_ids ) && ! empty( $term_ids ) ) {
+		foreach ( $term_ids as $tid ) {
 			$candidate_values[] = array(
 				'type'  => 'term',
-				'value' => (string) $t->term_id,
+				'value' => (string) $tid,
 			);
 		}
 	}
 
-	// URL mapping - try canonical/permalink.
+	// URL mapping - try canonical/permalink, normalized the same way as the indexer.
 	$permalink = get_permalink( $current_id );
 	if ( $permalink ) {
+		$url = fqj_normalize_url( $permalink );
+
 		$candidate_values[] = array(
 			'type'  => 'url',
-			'value' => rtrim( strtok( $permalink, '?' ), '/' ),
+			'value' => $url,
+		);
+		// Rows indexed before URL normalization may still carry a trailing slash.
+		$candidate_values[] = array(
+			'type'  => 'url',
+			'value' => $url . '/',
 		);
 	}
 

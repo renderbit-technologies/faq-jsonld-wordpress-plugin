@@ -85,22 +85,27 @@ function fqj_assoc_rules_meta_box_cb( $post ) {
 	$data_json = get_post_meta( $post->ID, 'fqj_assoc_data_json', true );
 	$data_json = $data_json ? $data_json : '{}';
 	$data      = json_decode( $data_json, true );
+	if ( ! is_array( $data ) ) {
+		$data = array();
+	}
 
 	// Hydrate posts and terms with titles/names for Select2.
+	// Every stored ID is kept (even drafts, private, trashed or deleted items) so a re-save never drops it.
 	if ( isset( $data['posts'] ) && is_array( $data['posts'] ) && ! empty( $data['posts'] ) ) {
 		$hydrated_posts = array();
-		$posts_to_fetch = array_map( 'intval', $data['posts'] );
-		$fetched        = get_posts(
-			array(
-				'include'        => $posts_to_fetch,
-				'post_type'      => 'any',
-				'posts_per_page' => -1,
-			)
-		);
-		foreach ( $fetched as $p ) {
+		foreach ( array_map( 'intval', $data['posts'] ) as $pid ) {
+			$p = get_post( $pid );
+			if ( $p ) {
+				$text = get_the_title( $p ) . ' – ' . get_permalink( $p );
+				if ( 'publish' !== $p->post_status ) {
+					$text .= ' (' . $p->post_status . ')';
+				}
+			} else {
+				$text = 'Post #' . $pid . ' (not found)';
+			}
 			$hydrated_posts[] = array(
-				'id'   => $p->ID,
-				'text' => get_the_title( $p ) . ' – ' . get_permalink( $p ),
+				'id'   => $pid,
+				'text' => $text,
 			);
 		}
 		$data['posts'] = $hydrated_posts;
@@ -108,20 +113,23 @@ function fqj_assoc_rules_meta_box_cb( $post ) {
 
 	if ( isset( $data['terms'] ) && is_array( $data['terms'] ) && ! empty( $data['terms'] ) ) {
 		$hydrated_terms = array();
-		$terms_to_fetch = array_map( 'intval', $data['terms'] );
-		foreach ( $terms_to_fetch as $tid ) {
+		foreach ( array_map( 'intval', $data['terms'] ) as $tid ) {
 			$term = get_term( $tid );
 			if ( $term && ! is_wp_error( $term ) ) {
-				$hydrated_terms[] = array(
-					'id'   => $term->term_id,
-					'text' => $term->name . ' (' . $term->taxonomy . ')',
-				);
+				$text = $term->name . ' (' . $term->taxonomy . ')';
+			} else {
+				$text = 'Term #' . $tid . ' (not found)';
 			}
+			$hydrated_terms[] = array(
+				'id'   => $tid,
+				'text' => $text,
+			);
 		}
 		$data['terms'] = $hydrated_terms;
 	}
 
-	$data_json_hydrated = wp_json_encode( $data );
+	// Always hand the JS an object, even when the payload is empty.
+	$data_json_hydrated = empty( $data ) ? '{}' : wp_json_encode( $data );
 
 	$assoc_type = get_post_meta( $post->ID, 'fqj_assoc_type', true );
 	$assoc_type = $assoc_type ? $assoc_type : 'urls';
@@ -137,8 +145,7 @@ function fqj_assoc_rules_meta_box_cb( $post ) {
 	echo '<p><label for="fqj_assoc_type"><strong>Association Type</strong></label></p>';
 	echo '<select id="fqj_assoc_type" name="fqj_assoc_type" style="width:100%;max-width:400px;">';
 	foreach ( $assoc_types as $k => $label ) {
-		$sel = selected( $assoc_type, $k, false );
-		echo "<option value='" . esc_attr( $k ) . "' " . esc_attr( $sel ) . '>' . esc_html( $label ) . '</option>';
+		echo '<option value="' . esc_attr( $k ) . '"' . selected( $assoc_type, $k, false ) . '>' . esc_html( $label ) . '</option>';
 	}
 	echo '</select>';
 
