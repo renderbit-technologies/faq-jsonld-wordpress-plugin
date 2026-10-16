@@ -23,6 +23,8 @@ define( 'FQJ_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'FQJ_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'FQJ_DB_TABLE', $GLOBALS['wpdb']->prefix . 'fqj_mappings' );
 define( 'FQJ_OPTION_KEY', 'fqj_settings' );
+define( 'FQJ_DB_VERSION', '1' );
+define( 'FQJ_DB_VERSION_OPTION', 'fqj_db_version' );
 
 /**
  * Autoload includes

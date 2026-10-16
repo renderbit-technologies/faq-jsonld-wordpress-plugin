@@ -12,27 +12,45 @@ if ( ! defined( 'ABSPATH' ) ) {
 // phpcs:disable PSR1.Files.SideEffects
 
 /**
- * Create mapping table
+ * Create or update the mapping table.
+ *
+ * dbDelta() needs a strict format: no IF NOT EXISTS, two spaces after PRIMARY KEY, KEY (not INDEX),
+ * and no inline comments. Bump FQJ_DB_VERSION in faq-jsonld.php whenever this statement changes.
+ * mapping_type holds one of: post, post_type, term, url, global.
  */
 function fqj_create_table() {
 	global $wpdb;
 	$table_name      = FQJ_DB_TABLE;
 	$charset_collate = $wpdb->get_charset_collate();
 
-	$sql = "CREATE TABLE IF NOT EXISTS {$table_name} (
+	$sql = "CREATE TABLE {$table_name} (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
       faq_id BIGINT UNSIGNED NOT NULL,
-      mapping_type VARCHAR(32) NOT NULL,  -- 'post','post_type','term','url','global'
+      mapping_type VARCHAR(32) NOT NULL,
       mapping_value TEXT NOT NULL,
       PRIMARY KEY  (id),
-      INDEX idx_faq_id (faq_id),
-      INDEX idx_mapping_type (mapping_type),
-      INDEX idx_mapping_value (mapping_value(191))
+      KEY idx_faq_id (faq_id),
+      KEY idx_mapping_type (mapping_type),
+      KEY idx_mapping_value (mapping_value(191))
     ) {$charset_collate};";
 
 	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 	dbDelta( $sql );
+
+	update_option( FQJ_DB_VERSION_OPTION, FQJ_DB_VERSION );
 }
+
+/**
+ * Re-run the table setup when the stored schema version is behind the code.
+ *
+ * Activation hooks do not run on plugin updates, so this covers existing sites.
+ */
+function fqj_maybe_upgrade_db() {
+	if ( get_option( FQJ_DB_VERSION_OPTION ) !== FQJ_DB_VERSION ) {
+		fqj_create_table();
+	}
+}
+add_action( 'plugins_loaded', 'fqj_maybe_upgrade_db' );
 
 /**
  * Insert mapping rows for a given faq_id: accepts $mappings array with structure:
