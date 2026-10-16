@@ -296,14 +296,15 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 			FQJ_OPTION_KEY,
 			array_merge( get_option( FQJ_OPTION_KEY, array() ), array( 'batch_size' => 2 ) )
 		);
-		// Distinct dates keep WP_Query's date ordering stable across pages.
+		// Identical dates: paging must still be stable (ordered by ID).
+		$date  = '2024-01-01 00:00:00';
 		$pages = array();
 		for ( $i = 0; $i < 6; $i++ ) {
 			$pages[] = self::factory()->post->create(
 				array(
 					'post_type'   => 'page',
 					'post_status' => 5 === $i ? 'draft' : 'publish',
-					'post_date'   => gmdate( 'Y-m-d H:i:s', strtotime( '2024-01-01' ) + $i * DAY_IN_SECONDS ),
+					'post_date'   => $date,
 				)
 			);
 		}
@@ -319,6 +320,31 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 		);
 
 		$this->assertEqualSets( $pages, $this->get_queue() );
+	}
+
+	public function test_enqueue_term_mapping_pages_posts_sharing_a_date() {
+		update_option(
+			FQJ_OPTION_KEY,
+			array_merge( get_option( FQJ_OPTION_KEY, array() ), array( 'batch_size' => 2 ) )
+		);
+		$term   = self::factory()->category->create();
+		$tagged = array();
+		for ( $i = 0; $i < 5; $i++ ) {
+			$pid      = self::factory()->post->create( array( 'post_date' => '2024-01-01 00:00:00' ) );
+			$tagged[] = $pid;
+			wp_set_post_categories( $pid, array( $term ) );
+		}
+
+		fqj_enqueue_invalidation_for_mappings(
+			array(
+				array(
+					'type'  => 'term',
+					'value' => $term,
+				),
+			)
+		);
+
+		$this->assertEqualSets( $tagged, $this->get_queue() );
 	}
 
 	public function test_enqueue_term_mapping_queues_tagged_posts() {
