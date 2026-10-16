@@ -71,7 +71,24 @@ function fqj_delete_mappings_for_faq( $faq_id ) {
 }
 
 /**
- * Normalize a URL for mapping storage and lookup: drop query string/fragment and trailing slash.
+ * Query args that identify a single post when permalinks are plain (e.g. `?p=123`, `?book=slug`).
+ *
+ * @return string[]
+ */
+function fqj_identifying_query_args() {
+	$args = array( 'p', 'page_id', 'attachment_id' );
+	foreach ( get_post_types( array( 'public' => true ), 'objects' ) as $type ) {
+		if ( is_string( $type->query_var ) && '' !== $type->query_var ) {
+			$args[] = $type->query_var;
+		}
+	}
+
+	return array_values( array_unique( $args ) );
+}
+
+/**
+ * Normalize a URL for mapping storage and lookup: drop fragment and trailing slash, and drop the
+ * query string except for args that identify a post (plain permalinks), so `/?p=1` and `/?p=2` differ.
  *
  * Index and frontend lookup must use the same shape since mappings are compared with exact `=`.
  *
@@ -79,9 +96,21 @@ function fqj_delete_mappings_for_faq( $faq_id ) {
  * @return string
  */
 function fqj_normalize_url( $url ) {
-	$url = strtok( (string) $url, '?#' );
+	$url   = (string) $url;
+	$parts = explode( '?', (string) strtok( $url, '#' ), 2 );
+	$base  = rtrim( $parts[0], '/' );
 
-	return false === $url ? '' : rtrim( $url, '/' );
+	if ( isset( $parts[1] ) && '' !== $parts[1] ) {
+		parse_str( $parts[1], $query );
+		$keep = array_intersect_key( $query, array_flip( fqj_identifying_query_args() ) );
+		$keep = array_filter( $keep, 'is_scalar' );
+		if ( $keep ) {
+			ksort( $keep );
+			$base .= '/?' . http_build_query( $keep );
+		}
+	}
+
+	return $base;
 }
 
 /**
