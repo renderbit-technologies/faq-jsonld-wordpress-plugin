@@ -104,6 +104,18 @@ class Test_FQJ_Admin extends FQJ_TestCase {
 		unset( $_GET['post'] );
 	}
 
+	public function test_clean_save_clears_stale_rejected_url_notice() {
+		$faq = $this->create_faq();
+		$this->submit( $faq, array( 'fqj_assoc_type' => 'urls', 'fqj_assoc_urls' => 'javascript:alert(1)' ) );
+		$this->submit( $faq, array( 'fqj_assoc_type' => 'global' ) );
+
+		$_GET['post'] = $faq;
+		ob_start();
+		fqj_rejected_urls_notice();
+		$this->assertSame( '', ob_get_clean() );
+		unset( $_GET['post'] );
+	}
+
 	public function test_save_posts() {
 		$a   = self::factory()->post->create();
 		$faq = $this->create_faq();

@@ -184,6 +184,9 @@ function fqj_save_meta_handler( $post_id, $post ) {
 	$assoc_type = isset( $_POST['fqj_assoc_type'] ) ? sanitize_text_field( wp_unslash( $_POST['fqj_assoc_type'] ) ) : 'urls';
 	$payload    = array();
 
+	// Drop any notice left over from an earlier save.
+	delete_transient( 'fqj_rejected_urls_' . get_current_user_id() . '_' . $post_id );
+
 	if ( 'urls' === $assoc_type ) {
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 		$raw   = isset( $_POST['fqj_assoc_urls'] ) ? trim( wp_unslash( $_POST['fqj_assoc_urls'] ) ) : '';
