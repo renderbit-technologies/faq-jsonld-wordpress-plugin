@@ -37,16 +37,20 @@ function fqj_create_table() {
 	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 	dbDelta( $sql );
 
-	update_option( FQJ_DB_VERSION_OPTION, FQJ_DB_VERSION );
+	// Record the version only if the table exists, so a failed run retries on the next request.
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	if ( $wpdb->get_results( "DESCRIBE {$table_name}" ) ) {
+		update_option( FQJ_DB_VERSION_OPTION, FQJ_DB_VERSION );
+	}
 }
 
 /**
- * Re-run the table setup when the stored schema version is behind the code.
+ * Re-run the table setup when the stored schema version is missing or older than the code.
  *
  * Activation hooks do not run on plugin updates, so this covers existing sites.
  */
 function fqj_maybe_upgrade_db() {
-	if ( get_option( FQJ_DB_VERSION_OPTION ) !== FQJ_DB_VERSION ) {
+	if ( version_compare( (string) get_option( FQJ_DB_VERSION_OPTION, '0' ), FQJ_DB_VERSION, '<' ) ) {
 		fqj_create_table();
 	}
 }
