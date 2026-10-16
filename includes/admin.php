@@ -189,6 +189,7 @@ function fqj_save_meta_handler( $post_id, $post ) {
 		$raw   = isset( $_POST['fqj_assoc_urls'] ) ? trim( wp_unslash( $_POST['fqj_assoc_urls'] ) ) : '';
 		$lines = preg_split( "/\r\n|\n|\r/", $raw );
 		$urls  = array();
+		$bad   = array();
 		foreach ( $lines as $l ) {
 			$l = trim( $l );
 			if ( empty( $l ) ) {
@@ -197,11 +198,15 @@ function fqj_save_meta_handler( $post_id, $post ) {
 			$clean = esc_url_raw( $l );
 			if ( '' === $clean ) {
 				// Rejected (e.g. disallowed protocol); do not store an empty mapping.
+				$bad[] = $l;
 				continue;
 			}
 			$urls[] = $clean;
 		}
 		$payload['urls'] = array_values( array_unique( $urls ) );
+		if ( $bad ) {
+			set_transient( 'fqj_rejected_urls_' . get_current_user_id() . '_' . $post_id, $bad, MINUTE_IN_SECONDS );
+		}
 	} elseif ( 'posts' === $assoc_type ) {
 		$post_ids = array();
 		if ( isset( $_POST['fqj_assoc_posts_select'] ) && is_array( $_POST['fqj_assoc_posts_select'] ) ) {
@@ -240,6 +245,28 @@ function fqj_save_meta_handler( $post_id, $post ) {
 	fqj_rebuild_index_for_faq( $post_id );
 }
 add_action( 'save_post', 'fqj_save_meta_handler', 10, 2 );
+
+/**
+ * Admin notice listing URLs rejected on the last save of this FAQ.
+ */
+function fqj_rejected_urls_notice() {
+	$post_id = isset( $_GET['post'] ) ? absint( $_GET['post'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+	if ( ! $post_id ) {
+		return;
+	}
+	$key = 'fqj_rejected_urls_' . get_current_user_id() . '_' . $post_id;
+	$bad = get_transient( $key );
+	if ( empty( $bad ) || ! is_array( $bad ) ) {
+		return;
+	}
+	delete_transient( $key );
+	printf(
+		'<div class="notice notice-warning is-dismissible"><p>%s</p><ul>%s</ul></div>',
+		esc_html__( 'These URLs were not valid and were not saved:', 'faq-jsonld' ),
+		'<li><code>' . implode( '</code></li><li><code>', array_map( 'esc_html', $bad ) ) . '</code></li>' // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	);
+}
+add_action( 'admin_notices', 'fqj_rejected_urls_notice' );
 
 /**
  * AJAX: search posts for Select2

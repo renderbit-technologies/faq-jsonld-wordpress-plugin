@@ -81,6 +81,29 @@ class Test_FQJ_Admin extends FQJ_TestCase {
 		$this->assertNotContains( '', $values );
 	}
 
+	public function test_rejected_urls_show_admin_notice_once() {
+		$faq = $this->create_faq();
+		$this->submit(
+			$faq,
+			array(
+				'fqj_assoc_type' => 'urls',
+				'fqj_assoc_urls' => "https://example.org/a\njavascript:alert(1)",
+			)
+		);
+
+		$_GET['post'] = $faq;
+		ob_start();
+		fqj_rejected_urls_notice();
+		$html = ob_get_clean();
+		$this->assertStringContainsString( 'javascript:alert(1)', $html );
+		$this->assertStringNotContainsString( 'example.org/a', $html );
+
+		ob_start();
+		fqj_rejected_urls_notice();
+		$this->assertSame( '', ob_get_clean(), 'Notice shows once.' );
+		unset( $_GET['post'] );
+	}
+
 	public function test_save_posts() {
 		$a   = self::factory()->post->create();
 		$faq = $this->create_faq();
