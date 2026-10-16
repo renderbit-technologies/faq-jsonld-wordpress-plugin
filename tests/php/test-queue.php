@@ -29,6 +29,12 @@ class Test_FQJ_Queue extends FQJ_TestCase {
 		$this->assertSame( array( 3, 1, 2, 4 ), $this->get_queue() );
 	}
 
+	public function test_add_dedupes_ids_within_one_call() {
+		$this->assertTrue( fqj_queue_add_posts( array( 3, 1, 3 ) ) );
+
+		$this->assertSame( array( 3, 1 ), $this->get_queue() );
+	}
+
 	public function test_add_recovers_from_corrupt_queue() {
 		set_transient( 'fqj_invalidate_queue', 'garbage' );
 		fqj_queue_add_posts( array( 9 ) );
