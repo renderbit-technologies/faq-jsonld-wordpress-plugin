@@ -218,6 +218,8 @@ function fqj_enqueue_invalidation_for_mappings( $mappings ) {
 					'post_status'    => 'any',
 					'posts_per_page' => $batch_size,
 					'paged'          => $paged,
+					'orderby'        => 'ID',
+					'order'          => 'ASC',
 					'fields'         => 'ids',
 				);
 				$q    = new WP_Query( $args );
@@ -251,6 +253,8 @@ function fqj_enqueue_invalidation_for_mappings( $mappings ) {
 					'post_type'      => 'any',
 					'posts_per_page' => $batch_size,
 					'paged'          => $paged,
+					'orderby'        => 'ID',
+					'order'          => 'ASC',
 					'fields'         => 'ids',
 					'tax_query'      => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query
 						array(
