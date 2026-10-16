@@ -35,6 +35,24 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 		);
 	}
 
+	public function test_create_table_stores_schema_version() {
+		delete_option( FQJ_DB_VERSION_OPTION );
+		fqj_create_table();
+		$this->assertSame( FQJ_DB_VERSION, get_option( FQJ_DB_VERSION_OPTION ) );
+	}
+
+	public function test_maybe_upgrade_db_runs_when_version_is_stale() {
+		update_option( FQJ_DB_VERSION_OPTION, '0' );
+		fqj_maybe_upgrade_db();
+		$this->assertSame( FQJ_DB_VERSION, get_option( FQJ_DB_VERSION_OPTION ) );
+	}
+
+	public function test_maybe_upgrade_db_skips_newer_stored_version() {
+		update_option( FQJ_DB_VERSION_OPTION, '999' );
+		fqj_maybe_upgrade_db();
+		$this->assertSame( '999', get_option( FQJ_DB_VERSION_OPTION ) );
+	}
+
 	public function test_insert_and_delete_mappings() {
 		fqj_insert_mappings(
 			123,

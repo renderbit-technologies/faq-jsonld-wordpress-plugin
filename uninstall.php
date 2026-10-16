@@ -15,6 +15,7 @@ global $wpdb;
 
 // Delete options.
 delete_option( 'fqj_settings' );
+delete_option( 'fqj_db_version' );
 
 // Drop table. The name is built from $wpdb->prefix only, so it is safe to interpolate.
 $table = $wpdb->prefix . 'fqj_mappings';
