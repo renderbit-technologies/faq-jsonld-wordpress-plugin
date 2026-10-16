@@ -56,6 +56,79 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 		$this->assertSame( '999', get_option( FQJ_DB_VERSION_OPTION ) );
 	}
 
+	public function test_data_migration_reindexes_and_purges_once() {
+		$faq = self::factory()->post->create( array( 'post_type' => 'faq_item' ) );
+		update_post_meta( $faq, 'fqj_assoc_data_json', wp_json_encode( array( 'posts' => array( 5 ) ) ) );
+		fqj_insert_mappings( $faq, array( array( 'type' => 'url', 'value' => 'https://example.com/?bad' ) ) );
+		set_transient( 'fqj_faq_json_5', 'stale', 600 );
+		delete_option( FQJ_DATA_VERSION_OPTION );
+
+		fqj_run_data_migration();
+
+		$this->assertSame( FQJ_DATA_VERSION, get_option( FQJ_DATA_VERSION_OPTION ) );
+		$this->assertFalse( get_transient( 'fqj_faq_json_5' ) );
+		global $wpdb;
+		$rows = $wpdb->get_col( $wpdb->prepare( 'SELECT mapping_type FROM ' . FQJ_DB_TABLE . ' WHERE faq_id = %d', $faq ) );
+		$this->assertSame( array( 'post' ), $rows );
+
+		set_transient( 'fqj_faq_json_5', 'fresh', 600 );
+		fqj_run_data_migration();
+		$this->assertSame( 'fresh', get_transient( 'fqj_faq_json_5' ) );
+	}
+
+	public function test_data_migration_reindexes_trashed_faqs() {
+		$faq = self::factory()->post->create( array( 'post_type' => 'faq_item', 'post_status' => 'trash' ) );
+		fqj_insert_mappings( $faq, array( array( 'type' => 'url', 'value' => 'https://example.com/?bad' ) ) );
+		delete_option( FQJ_DATA_VERSION_OPTION );
+
+		fqj_run_data_migration();
+
+		global $wpdb;
+		$count = $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . FQJ_DB_TABLE . ' WHERE faq_id = %d', $faq ) );
+		$this->assertSame( '0', (string) $count );
+	}
+
+	public function test_data_migration_runs_in_batches() {
+		add_filter( 'fqj_data_migration_batch_size', array( $this, 'tiny_batch' ) );
+		self::factory()->post->create_many( 3, array( 'post_type' => 'faq_item' ) );
+		delete_option( FQJ_DATA_VERSION_OPTION );
+		delete_option( FQJ_DATA_MIGRATION_CURSOR_OPTION );
+		wp_clear_scheduled_hook( 'fqj_data_migration' );
+
+		fqj_run_data_migration();
+		$this->assertNotSame( FQJ_DATA_VERSION, get_option( FQJ_DATA_VERSION_OPTION ) );
+		$this->assertNotFalse( wp_next_scheduled( 'fqj_data_migration' ) );
+
+		for ( $i = 0; $i < 5 && FQJ_DATA_VERSION !== get_option( FQJ_DATA_VERSION_OPTION ); $i++ ) {
+			fqj_run_data_migration();
+		}
+		remove_filter( 'fqj_data_migration_batch_size', array( $this, 'tiny_batch' ) );
+		$this->assertSame( FQJ_DATA_VERSION, get_option( FQJ_DATA_VERSION_OPTION ) );
+		$this->assertFalse( get_option( FQJ_DATA_MIGRATION_CURSOR_OPTION ) );
+	}
+
+	public function tiny_batch() {
+		return 2;
+	}
+
+	public function test_maybe_schedule_data_migration() {
+		wp_clear_scheduled_hook( 'fqj_data_migration' );
+		update_option( FQJ_DATA_VERSION_OPTION, FQJ_DATA_VERSION );
+		fqj_maybe_schedule_data_migration();
+		$this->assertFalse( wp_next_scheduled( 'fqj_data_migration' ) );
+
+		delete_option( FQJ_DATA_VERSION_OPTION );
+		fqj_maybe_schedule_data_migration();
+		$this->assertNotFalse( wp_next_scheduled( 'fqj_data_migration' ) );
+		wp_clear_scheduled_hook( 'fqj_data_migration' );
+	}
+
+	public function test_activation_skips_migration_on_fresh_install() {
+		delete_option( FQJ_DATA_VERSION_OPTION );
+		fqj_activate();
+		$this->assertSame( FQJ_DATA_VERSION, get_option( FQJ_DATA_VERSION_OPTION ) );
+	}
+
 	public function test_insert_and_delete_mappings() {
 		fqj_insert_mappings(
 			123,

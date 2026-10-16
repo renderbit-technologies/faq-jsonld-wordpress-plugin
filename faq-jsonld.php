@@ -26,6 +26,11 @@ define( 'FQJ_OPTION_KEY', 'fqj_settings' );
 define( 'FQJ_DB_VERSION', '1' );
 define( 'FQJ_DB_VERSION_OPTION', 'fqj_db_version' );
 
+// Data migration version: bump to run a one-time reindex and cache purge on existing sites.
+define( 'FQJ_DATA_VERSION', '1' );
+define( 'FQJ_DATA_VERSION_OPTION', 'fqj_data_version' );
+define( 'FQJ_DATA_MIGRATION_CURSOR_OPTION', 'fqj_data_migration_cursor' );
+
 /**
  * Autoload includes
  */
@@ -72,6 +77,13 @@ add_action( 'init', 'fqj_register_cpt_faq_item' );
  * Activation: create DB table, defaults, schedule cron
  */
 function fqj_activate() {
+	// A site with no FAQs yet has nothing to migrate.
+	if ( false === get_option( FQJ_DATA_VERSION_OPTION ) && ! fqj_has_faq_items() ) {
+		// Cached output can outlive deleted FAQs on a reactivated site.
+		fqj_purge_all_faq_transients();
+		update_option( FQJ_DATA_VERSION_OPTION, FQJ_DATA_VERSION );
+	}
+
 	fqj_create_table();
 
 	$defaults = array(

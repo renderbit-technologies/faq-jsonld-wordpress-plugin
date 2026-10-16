@@ -57,6 +57,83 @@ function fqj_maybe_upgrade_db() {
 add_action( 'plugins_loaded', 'fqj_maybe_upgrade_db' );
 
 /**
+ * Check whether any FAQ item exists, in any status except auto-draft (trashed FAQs can be restored later).
+ *
+ * @return bool
+ */
+function fqj_has_faq_items() {
+	return ! empty( fqj_get_faq_ids_after( 0, 1 ) );
+}
+
+/**
+ * Get FAQ item IDs above a cursor, in ascending order.
+ *
+ * @param int $after_id Return IDs greater than this.
+ * @param int $limit    Maximum number of IDs.
+ * @return int[]
+ */
+function fqj_get_faq_ids_after( $after_id, $limit ) {
+	global $wpdb;
+	// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+	$ids = $wpdb->get_col(
+		$wpdb->prepare(
+			"SELECT ID FROM {$wpdb->posts} WHERE post_type = %s AND post_status <> 'auto-draft' AND ID > %d ORDER BY ID ASC LIMIT %d",
+			'faq_item',
+			(int) $after_id,
+			(int) $limit
+		)
+	);
+	// phpcs:enable
+	return array_map( 'intval', (array) $ids );
+}
+
+/**
+ * Run one batch of the one-time data migration (reindex every FAQ, then purge cached output).
+ *
+ * Reschedules itself until all FAQs are done. Sites hit by plain permalinks (#9) can hold wrong url rows
+ * and stale transients that new saves do not fix.
+ */
+function fqj_run_data_migration() {
+	if ( version_compare( (string) get_option( FQJ_DATA_VERSION_OPTION, '0' ), FQJ_DATA_VERSION, '>=' ) ) {
+		return;
+	}
+
+	$batch_size = max( 1, (int) apply_filters( 'fqj_data_migration_batch_size', 25 ) );
+	$cursor     = (int) get_option( FQJ_DATA_MIGRATION_CURSOR_OPTION, 0 );
+	$ids        = fqj_get_faq_ids_after( $cursor, $batch_size );
+
+	// The final purge clears cached output, so skip per-post invalidation unless transients live in an
+	// external object cache, where the purge cannot find them in the options table.
+	$enqueue = wp_using_ext_object_cache();
+	foreach ( $ids as $faq_id ) {
+		fqj_rebuild_index_for_faq( $faq_id, $enqueue );
+		$cursor = $faq_id;
+	}
+
+	if ( count( $ids ) >= $batch_size ) {
+		update_option( FQJ_DATA_MIGRATION_CURSOR_OPTION, $cursor, false );
+		wp_schedule_single_event( time() + 10, 'fqj_data_migration' );
+		return;
+	}
+
+	fqj_purge_all_faq_transients();
+	delete_option( FQJ_DATA_MIGRATION_CURSOR_OPTION );
+	update_option( FQJ_DATA_VERSION_OPTION, FQJ_DATA_VERSION );
+}
+add_action( 'fqj_data_migration', 'fqj_run_data_migration' );
+
+/**
+ * Schedule the data migration when the stored data version is older than the code.
+ */
+function fqj_maybe_schedule_data_migration() {
+	if ( version_compare( (string) get_option( FQJ_DATA_VERSION_OPTION, '0' ), FQJ_DATA_VERSION, '<' )
+		&& ! wp_next_scheduled( 'fqj_data_migration' ) ) {
+		wp_schedule_single_event( time(), 'fqj_data_migration' );
+	}
+}
+add_action( 'plugins_loaded', 'fqj_maybe_schedule_data_migration', 20 );
+
+/**
  * Insert mapping rows for a given faq_id: accepts $mappings array with structure:
  * array( array('type' => 'post', 'value' => '123'), array('type'=>'url', 'value'=>'https://...'), ... )
  *
@@ -139,9 +216,10 @@ function fqj_normalize_url( $url ) {
  * Build mapping rows from saved payload and index them
  * payload is array with keys 'urls', 'posts', 'post_types', 'terms', 'global'
  *
- * @param int $faq_id The FAQ ID.
+ * @param int  $faq_id  The FAQ ID.
+ * @param bool $enqueue Whether to enqueue affected posts for invalidation.
  */
-function fqj_rebuild_index_for_faq( $faq_id ) {
+function fqj_rebuild_index_for_faq( $faq_id, $enqueue = true ) {
 	// delete old.
 	fqj_delete_mappings_for_faq( $faq_id );
 
@@ -209,7 +287,9 @@ function fqj_rebuild_index_for_faq( $faq_id ) {
 	}
 
 	// Enqueue affected posts for background invalidation.
-	fqj_enqueue_invalidation_for_mappings( $mappings );
+	if ( $enqueue ) {
+		fqj_enqueue_invalidation_for_mappings( $mappings );
+	}
 }
 
 /**
