@@ -17,7 +17,14 @@ RUN apt-get update \
 # Local test database credentials match CI and CONTRIBUTING.md.
 RUN service mariadb start \
 	&& mariadb -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'root'; CREATE DATABASE IF NOT EXISTS wordpress_test; FLUSH PRIVILEGES;" \
-	&& service mariadb stop || true
+	&& (service mariadb stop || true)
+
+RUN printf '%s\n' \
+	'export WP_TESTS_DB_NAME=wordpress_test' \
+	'export WP_TESTS_DB_USER=root' \
+	'export WP_TESTS_DB_PASSWORD=root' \
+	'export WP_TESTS_DB_HOST=127.0.0.1' \
+	> /etc/profile.d/fqj-wp-tests-db.sh
 
 RUN echo 'ubuntu ALL=(ALL) NOPASSWD: /usr/sbin/service mariadb *' > /etc/sudoers.d/mariadb \
 	&& chmod 440 /etc/sudoers.d/mariadb
