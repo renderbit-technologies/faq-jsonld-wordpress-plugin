@@ -66,7 +66,7 @@ function fqj_queue_add_posts( $post_ids ) {
 	$queue_map = array_flip( $queue );
 	foreach ( $post_ids as $pid ) {
 		if ( ! isset( $queue_map[ $pid ] ) ) {
-			$queue[]            = $pid;
+			$queue[]           = $pid;
 			$queue_map[ $pid ] = true;
 		}
 	}
