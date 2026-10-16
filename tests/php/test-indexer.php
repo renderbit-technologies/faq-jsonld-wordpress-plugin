@@ -76,6 +76,18 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 		$this->assertSame( 'fresh', get_transient( 'fqj_faq_json_5' ) );
 	}
 
+	public function test_data_migration_reindexes_trashed_faqs() {
+		$faq = self::factory()->post->create( array( 'post_type' => 'faq_item', 'post_status' => 'trash' ) );
+		fqj_insert_mappings( $faq, array( array( 'type' => 'url', 'value' => 'https://example.com/?bad' ) ) );
+		delete_option( FQJ_DATA_VERSION_OPTION );
+
+		fqj_run_data_migration();
+
+		global $wpdb;
+		$count = $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . FQJ_DB_TABLE . ' WHERE faq_id = %d', $faq ) );
+		$this->assertSame( '0', (string) $count );
+	}
+
 	public function test_data_migration_runs_in_batches() {
 		add_filter( 'fqj_data_migration_batch_size', array( $this, 'tiny_batch' ) );
 		self::factory()->post->create_many( 3, array( 'post_type' => 'faq_item' ) );

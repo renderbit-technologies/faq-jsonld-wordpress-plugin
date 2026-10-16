@@ -57,7 +57,7 @@ function fqj_maybe_upgrade_db() {
 add_action( 'plugins_loaded', 'fqj_maybe_upgrade_db' );
 
 /**
- * Check whether any FAQ item exists, in any status except trash and auto-draft.
+ * Check whether any FAQ item exists, in any status except auto-draft (trashed FAQs can be restored later).
  *
  * @return bool
  */
@@ -77,7 +77,7 @@ function fqj_get_faq_ids_after( $after_id, $limit ) {
 	// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 	$ids = $wpdb->get_col(
 		$wpdb->prepare(
-			"SELECT ID FROM {$wpdb->posts} WHERE post_type = %s AND post_status NOT IN ('trash', 'auto-draft') AND ID > %d ORDER BY ID ASC LIMIT %d",
+			"SELECT ID FROM {$wpdb->posts} WHERE post_type = %s AND post_status <> 'auto-draft' AND ID > %d ORDER BY ID ASC LIMIT %d",
 			'faq_item',
 			(int) $after_id,
 			(int) $limit
@@ -102,8 +102,11 @@ function fqj_run_data_migration() {
 	$cursor     = (int) get_option( FQJ_DATA_MIGRATION_CURSOR_OPTION, 0 );
 	$ids        = fqj_get_faq_ids_after( $cursor, $batch_size );
 
+	// The final purge clears cached output, so skip per-post invalidation unless transients live in an
+	// external object cache, where the purge cannot find them in the options table.
+	$enqueue = wp_using_ext_object_cache();
 	foreach ( $ids as $faq_id ) {
-		fqj_rebuild_index_for_faq( $faq_id );
+		fqj_rebuild_index_for_faq( $faq_id, $enqueue );
 		$cursor = $faq_id;
 	}
 
@@ -213,9 +216,10 @@ function fqj_normalize_url( $url ) {
  * Build mapping rows from saved payload and index them
  * payload is array with keys 'urls', 'posts', 'post_types', 'terms', 'global'
  *
- * @param int $faq_id The FAQ ID.
+ * @param int  $faq_id  The FAQ ID.
+ * @param bool $enqueue Whether to enqueue affected posts for invalidation.
  */
-function fqj_rebuild_index_for_faq( $faq_id ) {
+function fqj_rebuild_index_for_faq( $faq_id, $enqueue = true ) {
 	// delete old.
 	fqj_delete_mappings_for_faq( $faq_id );
 
@@ -283,7 +287,9 @@ function fqj_rebuild_index_for_faq( $faq_id ) {
 	}
 
 	// Enqueue affected posts for background invalidation.
-	fqj_enqueue_invalidation_for_mappings( $mappings );
+	if ( $enqueue ) {
+		fqj_enqueue_invalidation_for_mappings( $mappings );
+	}
 }
 
 /**

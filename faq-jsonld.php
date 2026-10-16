@@ -79,6 +79,8 @@ add_action( 'init', 'fqj_register_cpt_faq_item' );
 function fqj_activate() {
 	// A site with no FAQs yet has nothing to migrate.
 	if ( false === get_option( FQJ_DATA_VERSION_OPTION ) && ! fqj_has_faq_items() ) {
+		// Cached output can outlive deleted FAQs on a reactivated site.
+		fqj_purge_all_faq_transients();
 		update_option( FQJ_DATA_VERSION_OPTION, FQJ_DATA_VERSION );
 	}
 
