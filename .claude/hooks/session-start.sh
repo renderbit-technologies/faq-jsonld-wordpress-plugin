@@ -54,6 +54,6 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
     echo "export WP_TESTS_DB_USER=\"$DB_USER\""
     echo "export WP_TESTS_DB_PASSWORD=\"$DB_PASS\""
     echo "export WP_TESTS_DB_NAME=\"$DB_NAME\""
-    echo 'export PATH="$PWD/vendor/bin:$PATH"'
+    echo "export PATH=\"$PWD/vendor/bin:\$PATH\""
   } >> "$CLAUDE_ENV_FILE"
 fi
