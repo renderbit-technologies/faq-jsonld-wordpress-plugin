@@ -53,7 +53,7 @@
     "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
     "phpunit/phpunit": "^9.6",
     "yoast/phpunit-polyfills": "^4.0",
-    "wp-phpunit/wp-phpunit": "^6.8",
-    "roots/wordpress-no-content": "^6.8"
+    "wp-phpunit/wp-phpunit": "^7.1",
+    "roots/wordpress-no-content": "^7.1"
   }
 }
