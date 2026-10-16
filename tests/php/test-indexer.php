@@ -31,6 +31,9 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 			'empty string'        => array( '', '' ),
 			'null'                => array( null, '' ),
 			'home with slash'     => array( 'https://example.com/', 'https://example.com' ),
+			'plain permalink p'   => array( 'https://example.com/?p=123', 'https://example.com/?p=123' ),
+			'plain page_id'       => array( 'https://example.com/?page_id=7&utm=x#a', 'https://example.com/?page_id=7' ),
+			'plain p differs'     => array( 'https://example.com/index.php?p=124', 'https://example.com/index.php/?p=124' ),
 			'unicode path'        => array( 'https://example.com/café/', 'https://example.com/café' ),
 		);
 	}
