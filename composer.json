@@ -31,10 +31,15 @@
     "allow-plugins": {
       "composer/installers": true,
       "dealerdirect/phpcodesniffer-composer-installer": true
+    },
+    "platform": {
+      "php": "7.4.33"
     }
   },
   "scripts": {
-    "build-zip": "zip -r faq-jsonld.zip . -x '*.git*' -x '*.gitignore' -x '*.github*' -x '*.codacy*'",
+    "build-zip": "zip -r faq-jsonld.zip . -x '*.git*' -x '*.gitignore' -x '*.github*' -x '*.codacy*' -x 'tests/*' -x 'node_modules/*' -x 'phpunit.xml.dist' -x 'package.json' -x 'package-lock.json'",
+    "lint": "phpcs",
+    "test": "phpunit",
     "bump-major": "composer run-script _bump-major-helper && composer update",
     "bump-minor": "composer run-script _bump-minor-helper && composer update",
     "bump-patch": "composer run-script _bump-patch-helper && composer update",
@@ -45,6 +50,10 @@
   },
   "require-dev": {
     "wp-coding-standards/wpcs": "^3.4.1",
-    "dealerdirect/phpcodesniffer-composer-installer": "^1.0"
+    "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+    "phpunit/phpunit": "^9.6",
+    "yoast/phpunit-polyfills": "^4.0",
+    "wp-phpunit/wp-phpunit": "^6.8",
+    "roots/wordpress-no-content": "^6.8"
   }
 }

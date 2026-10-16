@@ -1,0 +1,299 @@
+<?php
+/**
+ * JSON-LD output on the frontend.
+ *
+ * @package FAQ_JSON_LD
+ */
+
+/**
+ * Frontend tests.
+ */
+class Test_FQJ_Frontend extends FQJ_TestCase {
+
+	public function test_no_output_without_global_post() {
+		unset( $GLOBALS['post'] );
+		ob_start();
+		fqj_maybe_print_faq_jsonld();
+		$this->assertSame( '', ob_get_clean() );
+	}
+
+	public function test_no_output_in_admin() {
+		set_current_screen( 'dashboard' );
+		$post = self::factory()->post->create();
+		$this->create_faq( 'Q', 'A', array( 'global' => true ) );
+
+		$this->assertSame( '', $this->render_head_for( $post ) );
+		set_current_screen( 'front' );
+	}
+
+	public function test_post_mapping_outputs_faq_section() {
+		$post = self::factory()->post->create();
+		$this->create_faq( 'How much?', 'Ten dollars.', array( 'posts' => array( $post ) ) );
+
+		$html = $this->render_head_for( $post );
+		$this->assertStringContainsString( '(generated)', $html );
+
+		$this->assertSame(
+			array(
+				'@context'   => 'https://schema.org',
+				'@type'      => 'FAQSection',
+				'mainEntity' => array(
+					array(
+						'@type'          => 'Question',
+						'name'           => 'How much?',
+						'acceptedAnswer' => array(
+							'@type' => 'Answer',
+							'text'  => 'Ten dollars.',
+						),
+					),
+				),
+			),
+			$this->extract_json_ld( $html )
+		);
+	}
+
+	public function test_faqpage_output_type_setting() {
+		update_option( FQJ_OPTION_KEY, array( 'output_type' => 'faqpage' ) );
+		$post = self::factory()->post->create();
+		$this->create_faq( 'Q', 'A', array( 'posts' => array( $post ) ) );
+
+		$json = $this->extract_json_ld( $this->render_head_for( $post ) );
+		$this->assertSame( 'FAQPage', $json['@type'] );
+	}
+
+	public function test_unknown_output_type_falls_back_to_faq_section() {
+		update_option( FQJ_OPTION_KEY, array( 'output_type' => 'nonsense' ) );
+		$post = self::factory()->post->create();
+		$this->create_faq( 'Q', 'A', array( 'posts' => array( $post ) ) );
+
+		$json = $this->extract_json_ld( $this->render_head_for( $post ) );
+		$this->assertSame( 'FAQSection', $json['@type'] );
+	}
+
+	public function test_unmapped_post_gets_negative_cache() {
+		$post  = self::factory()->post->create();
+		$other = self::factory()->post->create();
+		$this->create_faq( 'Q', 'A', array( 'posts' => array( $other ) ) );
+
+		$html = $this->render_head_for( $post );
+		$this->assertStringContainsString( 'generated, no output', $html );
+		$this->assertStringNotContainsString( '<script', $html );
+		$this->assertSame( '__FQJ_EMPTY__', get_transient( 'fqj_faq_json_' . $post ) );
+
+		$this->assertStringContainsString( 'cached, no output', $this->render_head_for( $post ) );
+	}
+
+	public function test_cached_output_is_served_from_transient() {
+		$post = self::factory()->post->create();
+		set_transient( 'fqj_faq_json_' . $post, '<script type="application/ld+json">{"cached":true}</script>' );
+
+		$html = $this->render_head_for( $post );
+		$this->assertStringContainsString( '(cached)', $html );
+		$this->assertSame( array( 'cached' => true ), $this->extract_json_ld( $html ) );
+	}
+
+	public function test_blank_cached_value_reports_unknown_state() {
+		$post = self::factory()->post->create();
+		set_transient( 'fqj_faq_json_' . $post, '   ' );
+		$this->assertStringContainsString( 'cached, unknown state', $this->render_head_for( $post ) );
+	}
+
+	public function test_generated_output_is_cached_with_ttl() {
+		update_option( FQJ_OPTION_KEY, array( 'cache_ttl' => 600 ) );
+		$post = self::factory()->post->create();
+		$this->create_faq( 'Q', 'A', array( 'posts' => array( $post ) ) );
+
+		$html   = $this->render_head_for( $post );
+		$cached = get_transient( 'fqj_faq_json_' . $post );
+		$this->assertStringStartsWith( '<script type="application/ld+json">', $cached );
+		$this->assertStringContainsString( $cached, $html );
+
+		$timeout = (int) get_option( '_transient_timeout_fqj_faq_json_' . $post );
+		$this->assertEqualsWithDelta( time() + 600, $timeout, 5 );
+	}
+
+	public function test_post_type_mapping() {
+		$page = self::factory()->post->create( array( 'post_type' => 'page' ) );
+		$post = self::factory()->post->create();
+		$this->create_faq( 'Page Q', 'Page A', array( 'post_types' => array( 'page' ) ) );
+
+		$this->assertNotNull( $this->extract_json_ld( $this->render_head_for( $page ) ) );
+		$this->assertNull( $this->extract_json_ld( $this->render_head_for( $post ) ) );
+	}
+
+	public function test_term_mapping_for_category_and_custom_taxonomy() {
+		register_taxonomy( 'fqj_topic', 'post' );
+		$cat   = self::factory()->category->create();
+		$topic = self::factory()->term->create( array( 'taxonomy' => 'fqj_topic' ) );
+
+		$in_cat   = self::factory()->post->create();
+		$in_topic = self::factory()->post->create();
+		$neither  = self::factory()->post->create();
+		wp_set_post_categories( $in_cat, array( $cat ) );
+		wp_set_object_terms( $in_topic, array( $topic ), 'fqj_topic' );
+
+		$this->create_faq( 'Cat Q', 'Cat A', array( 'terms' => array( $cat ) ) );
+		$this->create_faq( 'Topic Q', 'Topic A', array( 'terms' => array( $topic ) ) );
+
+		$cat_json   = $this->extract_json_ld( $this->render_head_for( $in_cat ) );
+		$topic_json = $this->extract_json_ld( $this->render_head_for( $in_topic ) );
+		$this->assertSame( 'Cat Q', $cat_json['mainEntity'][0]['name'] );
+		$this->assertSame( 'Topic Q', $topic_json['mainEntity'][0]['name'] );
+		$this->assertNull( $this->extract_json_ld( $this->render_head_for( $neither ) ) );
+
+		unregister_taxonomy( 'fqj_topic' );
+	}
+
+	public function test_url_mapping_matches_permalink() {
+		$post = self::factory()->post->create( array( 'post_name' => 'contact' ) );
+		$faq  = $this->create_faq( 'Where?', 'Here.', array( 'urls' => array( 'http://example.org/contact/?from=menu' ) ) );
+
+		// Drop the post-ID row the indexer adds so only the URL row can match.
+		global $wpdb;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		$wpdb->delete(
+			FQJ_DB_TABLE,
+			array(
+				'faq_id'       => $faq,
+				'mapping_type' => 'post',
+			)
+		);
+
+		$json = $this->extract_json_ld( $this->render_head_for( $post ) );
+		$this->assertSame( 'Where?', $json['mainEntity'][0]['name'] );
+	}
+
+	public function test_legacy_url_rows_with_trailing_slash_still_match() {
+		$post = self::factory()->post->create( array( 'post_name' => 'legacy' ) );
+		$faq  = $this->create_faq( 'Old?', 'Yes.' );
+		fqj_insert_mappings(
+			$faq,
+			array(
+				array(
+					'type'  => 'url',
+					'value' => 'http://example.org/legacy/',
+				),
+			)
+		);
+
+		$this->assertNotNull( $this->extract_json_ld( $this->render_head_for( $post ) ) );
+	}
+
+	public function test_global_mapping_applies_everywhere() {
+		$this->create_faq( 'Global?', 'Yes.', array( 'global' => true ) );
+		$post = self::factory()->post->create();
+		$page = self::factory()->post->create( array( 'post_type' => 'page' ) );
+
+		$this->assertNotNull( $this->extract_json_ld( $this->render_head_for( $post ) ) );
+		$this->assertNotNull( $this->extract_json_ld( $this->render_head_for( $page ) ) );
+	}
+
+	public function test_post_id_does_not_partially_match_longer_ids() {
+		$post = self::factory()->post->create();
+		$faq  = $this->create_faq();
+		fqj_insert_mappings(
+			$faq,
+			array(
+				array(
+					'type'  => 'post',
+					'value' => $post . '1',
+				),
+				array(
+					'type'  => 'post',
+					'value' => '1' . $post,
+				),
+			)
+		);
+
+		$this->assertNull( $this->extract_json_ld( $this->render_head_for( $post ) ) );
+	}
+
+	public function test_mapping_type_must_match_value() {
+		$post = self::factory()->post->create();
+		$faq  = $this->create_faq();
+		fqj_insert_mappings(
+			$faq,
+			array(
+				array(
+					'type'  => 'term',
+					'value' => $post,
+				),
+			)
+		);
+
+		$this->assertNull( $this->extract_json_ld( $this->render_head_for( $post ) ) );
+	}
+
+	public function test_multiple_faqs_are_combined_once() {
+		$post = self::factory()->post->create( array( 'post_type' => 'page' ) );
+		$a    = $this->create_faq( 'A?', 'a', array( 'posts' => array( $post ) ) );
+		$b    = $this->create_faq( 'B?', 'b', array( 'post_types' => array( 'page' ) ) );
+		// Matches through two mapping rows but must appear only once.
+		fqj_insert_mappings(
+			$b,
+			array(
+				array(
+					'type'  => 'post',
+					'value' => $post,
+				),
+			)
+		);
+
+		$json  = $this->extract_json_ld( $this->render_head_for( $post ) );
+		$names = wp_list_pluck( $json['mainEntity'], 'name' );
+		$this->assertEqualSets( array( 'A?', 'B?' ), $names );
+		$this->assertCount( 2, $names );
+		$this->assertNotEmpty( $a );
+	}
+
+	public function test_unpublished_faqs_are_excluded() {
+		$post  = self::factory()->post->create();
+		$draft = $this->create_faq( 'Draft?', 'x', array( 'posts' => array( $post ) ) );
+		wp_update_post(
+			array(
+				'ID'          => $draft,
+				'post_status' => 'draft',
+			)
+		);
+
+		$html = $this->render_head_for( $post );
+		$this->assertNull( $this->extract_json_ld( $html ) );
+		$this->assertSame( '__FQJ_EMPTY__', get_transient( 'fqj_faq_json_' . $post ) );
+	}
+
+	public function test_faqs_with_empty_question_or_answer_are_skipped() {
+		$post = self::factory()->post->create();
+		$this->create_faq( '', 'Answer only', array( 'posts' => array( $post ) ) );
+		$this->create_faq( 'Question only', '', array( 'posts' => array( $post ) ) );
+		$this->create_faq( 'Tags only', '<p><br></p>', array( 'posts' => array( $post ) ) );
+
+		$html = $this->render_head_for( $post );
+		$this->assertNull( $this->extract_json_ld( $html ) );
+		$this->assertSame( '__FQJ_EMPTY__', get_transient( 'fqj_faq_json_' . $post ) );
+	}
+
+	public function test_answer_html_is_stripped_and_unicode_kept() {
+		$post = self::factory()->post->create();
+		$this->create_faq(
+			'Café hours?',
+			'<p>We open at <strong>9am</strong>.</p>',
+			array( 'posts' => array( $post ) )
+		);
+
+		$html = $this->render_head_for( $post );
+		$json = $this->extract_json_ld( $html );
+		$this->assertSame( 'Café hours?', $json['mainEntity'][0]['name'] );
+		$this->assertSame( 'We open at 9am.', $json['mainEntity'][0]['acceptedAnswer']['text'] );
+		$this->assertStringContainsString( 'Café', $html, 'Unicode is not escaped.' );
+		$this->assertStringContainsString( '"https://schema.org"', $html, 'Slashes are not escaped.' );
+	}
+
+	public function test_faq_mapped_to_trashed_post_id_has_no_effect_on_others() {
+		$post = self::factory()->post->create();
+		$gone = self::factory()->post->create();
+		$this->create_faq( 'Q', 'A', array( 'posts' => array( $gone ) ) );
+		wp_delete_post( $gone, true );
+
+		$this->assertNull( $this->extract_json_ld( $this->render_head_for( $post ) ) );
+	}
+}

@@ -6,6 +6,7 @@
 ![WP-Cron](https://img.shields.io/badge/Background-WP--Cron%20Queue-orange)
 ![WP-CLI](https://img.shields.io/badge/CLI-WP--CLI-21759B?logo=wordpress&logoColor=fff)
 ![Select2](https://img.shields.io/badge/Admin-Select2-e535ab)
+[![Tests](https://github.com/renderbit-technologies/faq-jsonld-wordpress-plugin/actions/workflows/tests.yml/badge.svg)](https://github.com/renderbit-technologies/faq-jsonld-wordpress-plugin/actions/workflows/tests.yml)
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](LICENSE.md)
 
 A WordPress plugin to manage FAQ items as a custom post type (CPT) and inject FAQ JSON-LD into posts/pages. Designed for performance and scalability with advanced cache management, background queueing, and admin/CLI tools.
@@ -52,6 +53,14 @@ A WordPress plugin to manage FAQ items as a custom post type (CPT) and inject FA
 - **Transient Keys:** `fqj_faq_json_{post_id}`
 - **Admin JS:** Uses Select2 for post selectors, AJAX for search (`fqj_search_posts` action).
 - **Background Processing:** Invalidation queue is processed every 5 minutes by WP-Cron.
+
+## Testing
+
+- **PHP:** PHPUnit integration tests against a real WordPress install (`tests/php`). Run with `composer test`; needs a MySQL database.
+- **JavaScript:** Jest tests for the admin scripts (`tests/js`). Run with `npm test`.
+- **Coding standards:** `composer lint`.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md#running-tests) for setup.
 
 ## Contributing
 
