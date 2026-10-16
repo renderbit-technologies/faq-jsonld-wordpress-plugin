@@ -77,7 +77,7 @@ function fqj_delete_mappings_for_faq( $faq_id ) {
  */
 function fqj_identifying_query_args() {
 	$args = array( 'p', 'page_id', 'attachment_id' );
-	foreach ( get_post_types( array( 'public' => true ), 'objects' ) as $type ) {
+	foreach ( get_post_types( array( 'publicly_queryable' => true ), 'objects' ) as $type ) {
 		if ( is_string( $type->query_var ) && '' !== $type->query_var ) {
 			$args[] = $type->query_var;
 		}
