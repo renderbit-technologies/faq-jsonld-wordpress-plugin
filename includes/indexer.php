@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Create or update the mapping table.
  *
- * dbDelta() needs a strict format: no IF NOT EXISTS, two spaces after PRIMARY KEY, KEY (not INDEX),
+ * The dbDelta() function needs a strict format: no IF NOT EXISTS, two spaces after PRIMARY KEY, KEY (not INDEX),
  * and no inline comments. Bump FQJ_DB_VERSION in faq-jsonld.php whenever this statement changes.
  * mapping_type holds one of: post, post_type, term, url, global.
  */
