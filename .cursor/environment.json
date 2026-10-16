@@ -1,0 +1,10 @@
+{
+  "name": "FAQ JSON-LD WordPress Plugin",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  "user": "ubuntu",
+  "install": "bash .cursor/cloud-install.sh",
+  "start": "bash .cursor/cloud-start.sh"
+}
