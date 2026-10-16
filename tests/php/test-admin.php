@@ -73,11 +73,47 @@ class Test_FQJ_Admin extends FQJ_TestCase {
 		$this->assertSame( 'urls', get_post_meta( $faq, 'fqj_assoc_type', true ) );
 		$urls = $this->payload( $faq )['urls'];
 		$this->assertSame( array( 'https://example.org/a/', 'https://example.org/b' ), array_slice( $urls, 0, 2 ), 'Trimmed, blank lines skipped, deduped.' );
-		$this->assertNotContains( 'javascript:alert(1)', $urls );
+		$this->assertSame( array( 'https://example.org/a/', 'https://example.org/b' ), $urls, 'Rejected URLs are dropped, not stored as empty strings.' );
 
 		$values = wp_list_pluck( $this->get_mappings( $faq ), 'mapping_value' );
 		$this->assertContains( 'https://example.org/a', $values );
 		$this->assertContains( 'https://example.org/b', $values );
+		$this->assertNotContains( '', $values );
+	}
+
+	public function test_rejected_urls_show_admin_notice_once() {
+		$faq = $this->create_faq();
+		$this->submit(
+			$faq,
+			array(
+				'fqj_assoc_type' => 'urls',
+				'fqj_assoc_urls' => "https://example.org/a\njavascript:alert(1)",
+			)
+		);
+
+		$_GET['post'] = $faq;
+		ob_start();
+		fqj_rejected_urls_notice();
+		$html = ob_get_clean();
+		$this->assertStringContainsString( 'javascript:alert(1)', $html );
+		$this->assertStringNotContainsString( 'example.org/a', $html );
+
+		ob_start();
+		fqj_rejected_urls_notice();
+		$this->assertSame( '', ob_get_clean(), 'Notice shows once.' );
+		unset( $_GET['post'] );
+	}
+
+	public function test_clean_save_clears_stale_rejected_url_notice() {
+		$faq = $this->create_faq();
+		$this->submit( $faq, array( 'fqj_assoc_type' => 'urls', 'fqj_assoc_urls' => 'javascript:alert(1)' ) );
+		$this->submit( $faq, array( 'fqj_assoc_type' => 'global' ) );
+
+		$_GET['post'] = $faq;
+		ob_start();
+		fqj_rejected_urls_notice();
+		$this->assertSame( '', ob_get_clean() );
+		unset( $_GET['post'] );
 	}
 
 	public function test_save_posts() {
