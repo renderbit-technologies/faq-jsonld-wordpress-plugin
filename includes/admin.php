@@ -194,7 +194,12 @@ function fqj_save_meta_handler( $post_id, $post ) {
 			if ( empty( $l ) ) {
 				continue;
 			}
-			$urls[] = esc_url_raw( $l );
+			$clean = esc_url_raw( $l );
+			if ( '' === $clean ) {
+				// Rejected (e.g. disallowed protocol); do not store an empty mapping.
+				continue;
+			}
+			$urls[] = $clean;
 		}
 		$payload['urls'] = array_values( array_unique( $urls ) );
 	} elseif ( 'posts' === $assoc_type ) {

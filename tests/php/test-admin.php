@@ -73,11 +73,12 @@ class Test_FQJ_Admin extends FQJ_TestCase {
 		$this->assertSame( 'urls', get_post_meta( $faq, 'fqj_assoc_type', true ) );
 		$urls = $this->payload( $faq )['urls'];
 		$this->assertSame( array( 'https://example.org/a/', 'https://example.org/b' ), array_slice( $urls, 0, 2 ), 'Trimmed, blank lines skipped, deduped.' );
-		$this->assertNotContains( 'javascript:alert(1)', $urls );
+		$this->assertSame( array( 'https://example.org/a/', 'https://example.org/b' ), $urls, 'Rejected URLs are dropped, not stored as empty strings.' );
 
 		$values = wp_list_pluck( $this->get_mappings( $faq ), 'mapping_value' );
 		$this->assertContains( 'https://example.org/a', $values );
 		$this->assertContains( 'https://example.org/b', $values );
+		$this->assertNotContains( '', $values );
 	}
 
 	public function test_save_posts() {
