@@ -23,7 +23,7 @@ jobs:
         # The plugin declares PHP >= 7.2, so check syntax down to that.
         php: ["7.2", "7.4", "8.0", "8.1", "8.2", "8.3", "8.4"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
@@ -38,7 +38,7 @@ jobs:
     name: Coding standards
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
@@ -46,7 +46,7 @@ jobs:
           coverage: none
           tools: cs2pr
 
-      - uses: ramsey/composer-install@a8d0d959dab41457692a5e2041bd9b757a119e3f # 3.2.1
+      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
 
       - name: Run PHPCS
         run: vendor/bin/phpcs -q --report=checkstyle | cs2pr
@@ -86,7 +86,7 @@ jobs:
       WP_TESTS_DB_PASSWORD: root
       WP_TESTS_DB_NAME: wordpress_test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
@@ -94,7 +94,7 @@ jobs:
           extensions: mysqli
           coverage: ${{ matrix.coverage && 'pcov' || 'none' }}
 
-      - uses: ramsey/composer-install@a8d0d959dab41457692a5e2041bd9b757a119e3f # 3.2.1
+      - uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
 
       - name: Switch WordPress version
         if: matrix.wp != 'locked'
@@ -113,7 +113,7 @@ jobs:
 
       - name: Upload coverage report
         if: ${{ matrix.coverage }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: php-coverage
           path: coverage.xml
@@ -122,9 +122,9 @@ jobs:
     name: Jest
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
