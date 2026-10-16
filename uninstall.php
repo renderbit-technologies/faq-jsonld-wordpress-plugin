@@ -16,6 +16,9 @@ global $wpdb;
 // Delete options.
 delete_option( 'fqj_settings' );
 delete_option( 'fqj_db_version' );
+delete_option( 'fqj_data_version' );
+delete_option( 'fqj_data_migration_cursor' );
+wp_clear_scheduled_hook( 'fqj_data_migration' );
 
 // Drop table. The name is built from $wpdb->prefix only, so it is safe to interpolate.
 $table = $wpdb->prefix . 'fqj_mappings';
