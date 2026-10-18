@@ -16,22 +16,35 @@ jQuery(document).ready(function ($) {
     (window.fqjAdmin && window.fqjAdmin.i18n) || {}
   );
 
+  // Build elements from a tag name and attributes rather than HTML strings.
+  function el(tag, attrs) {
+    var $el = $(document.createElement(tag));
+    if (attrs) $el.attr(attrs);
+    return $el;
+  }
+
   function renderField(type, data) {
     $container.empty();
     if (type === "urls") {
       var urls = data.urls ? data.urls.join("\n") : "";
+      $container.append(el("p").text(i18n.urlsHelp));
       $container.append(
-        $("<p>").text(i18n.urlsHelp)
-      );
-      $container.append(
-        $(
-          '<textarea id="fqj_assoc_urls" name="fqj_assoc_urls" rows="6" style="width:100%;"></textarea>'
-        ).val(urls)
+        el("textarea", {
+          id: "fqj_assoc_urls",
+          name: "fqj_assoc_urls",
+          rows: 6,
+          style: "width:100%;"
+        }).val(urls)
       );
     } else if (type === "posts") {
-      $container.append($("<p>").text(i18n.postsHelp));
+      $container.append(el("p").text(i18n.postsHelp));
       $container.append(
-        '<select id="fqj_assoc_posts_select" name="fqj_assoc_posts_select[]" multiple="multiple" style="width:100%"></select>'
+        el("select", {
+          id: "fqj_assoc_posts_select",
+          name: "fqj_assoc_posts_select[]",
+          multiple: "multiple",
+          style: "width:100%"
+        })
       );
       $("#fqj_assoc_posts_select").select2({
         placeholder: i18n.postsPlaceholder,
@@ -70,8 +83,8 @@ jQuery(document).ready(function ($) {
         select.trigger("change");
       }
     } else if (type === "post_types") {
-      $container.append($("<p>").text(i18n.postTypesHelp));
-      $container.append('<div id="fqj_post_types_wrap"></div>');
+      $container.append(el("p").text(i18n.postTypesHelp));
+      $container.append(el("div", { id: "fqj_post_types_wrap" }));
       $.get(
         fqjAdmin.ajax_url,
         { action: "fqj_get_post_types", nonce: fqjAdmin.nonce },
@@ -83,13 +96,14 @@ jQuery(document).ready(function ($) {
               data.post_types && data.post_types.indexOf(pt.name) !== -1
                 ? "checked"
                 : "";
-            var $box = $(
-              '<input type="checkbox" name="fqj_assoc_post_types[]">'
-            )
+            var $box = el("input", {
+              type: "checkbox",
+              name: "fqj_assoc_post_types[]"
+            })
               .val(pt.name)
               .prop("checked", !!checked);
             wrap.append(
-              $('<label style="display:block;margin-bottom:4px;"></label>')
+              el("label", { style: "display:block;margin-bottom:4px;" })
                 .append($box)
                 .append(document.createTextNode(" " + pt.label))
             );
@@ -98,9 +112,14 @@ jQuery(document).ready(function ($) {
         "json"
       );
     } else if (type === "tax_terms") {
-      $container.append($("<p>").text(i18n.termsHelp));
+      $container.append(el("p").text(i18n.termsHelp));
       $container.append(
-        '<select id="fqj_assoc_terms_select" name="fqj_assoc_terms_select[]" multiple="multiple" style="width:100%"></select>'
+        el("select", {
+          id: "fqj_assoc_terms_select",
+          name: "fqj_assoc_terms_select[]",
+          multiple: "multiple",
+          style: "width:100%"
+        })
       );
       $("#fqj_assoc_terms_select").select2({
         placeholder: i18n.termsPlaceholder,
@@ -137,40 +156,51 @@ jQuery(document).ready(function ($) {
         select.trigger("change");
       }
     } else if (type === "global") {
-      $container.append($("<p>").text(i18n.globalHelp));
+      $container.append(el("p").text(i18n.globalHelp));
       $container.append(
-        '<input type="hidden" name="fqj_assoc_global" value="1">'
+        el("input", { type: "hidden", name: "fqj_assoc_global", value: "1" })
       );
     }
   }
 
+  // Selected options of a Select2 field as {id, text} pairs.
+  function selectedOptions(selector) {
+    return $(selector)
+      .find("option:selected")
+      .map(function () {
+        return { id: this.value, text: this.text };
+      })
+      .get();
+  }
+
   // Read the in-progress selection out of the currently rendered field.
   function captureState(type) {
-    var out = {};
     if (type === "urls") {
       var raw = $("#fqj_assoc_urls").val();
-      out.urls = raw
-        ? raw.split(/\r\n|\n|\r/).filter(function (l) {
-            return l.trim() !== "";
-          })
-        : [];
-    } else if (type === "posts" || type === "tax_terms") {
-      var key = type === "posts" ? "posts" : "terms";
-      var id = type === "posts" ? "#fqj_assoc_posts_select" : "#fqj_assoc_terms_select";
-      out[key] = $(id)
-        .find("option:selected")
-        .map(function () {
-          return { id: this.value, text: this.text };
-        })
-        .get();
-    } else if (type === "post_types") {
-      out.post_types = $('input[name="fqj_assoc_post_types[]"]:checked')
-        .map(function () {
-          return this.value;
-        })
-        .get();
+      return {
+        urls: raw
+          ? raw.split(/\r\n|\n|\r/).filter(function (l) {
+              return l.trim() !== "";
+            })
+          : []
+      };
     }
-    return out;
+    if (type === "posts") {
+      return { posts: selectedOptions("#fqj_assoc_posts_select") };
+    }
+    if (type === "tax_terms") {
+      return { terms: selectedOptions("#fqj_assoc_terms_select") };
+    }
+    if (type === "post_types") {
+      return {
+        post_types: $('input[name="fqj_assoc_post_types[]"]:checked')
+          .map(function () {
+            return this.value;
+          })
+          .get()
+      };
+    }
+    return {};
   }
 
   // preload data
@@ -188,14 +218,14 @@ jQuery(document).ready(function ($) {
   // The saved data belongs to the type selected on load. Other types start empty,
   // and in-progress edits are remembered per type while switching.
   var currentType = $assocType.val();
-  var stateByType = {};
-  stateByType[currentType] = initData;
+  var stateByType = new Map();
+  stateByType.set(currentType, initData);
 
   renderField(currentType, initData);
 
   $assocType.on("change", function () {
-    stateByType[currentType] = captureState(currentType);
+    stateByType.set(currentType, captureState(currentType));
     currentType = $(this).val();
-    renderField(currentType, stateByType[currentType] || {});
+    renderField(currentType, stateByType.get(currentType) || {});
   });
 });
