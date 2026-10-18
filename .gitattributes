@@ -1,0 +1,16 @@
+# Files omitted from `git archive` (and therefore from the release zip built by `composer build-zip`).
+# The plugin has no runtime Composer dependencies, so only the runtime files below are shipped.
+/.claude            export-ignore
+/.cursor            export-ignore
+/.github            export-ignore
+/.gitattributes     export-ignore
+/.gitignore         export-ignore
+/bin                export-ignore
+/tests              export-ignore
+/CONTRIBUTING.md    export-ignore
+/composer.json      export-ignore
+/composer.lock      export-ignore
+/package.json       export-ignore
+/package-lock.json  export-ignore
+/phpcs.xml          export-ignore
+/phpunit.xml.dist   export-ignore

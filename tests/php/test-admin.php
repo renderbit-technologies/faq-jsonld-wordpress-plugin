@@ -384,9 +384,28 @@ class Test_FQJ_Admin extends FQJ_TestCase {
 		$this->assertTrue( wp_script_is( 'fqj-select2-js', 'enqueued' ) );
 		$this->assertTrue( wp_style_is( 'fqj-select2-css', 'enqueued' ) );
 
+		$this->assertStringStartsWith( FQJ_PLUGIN_URL, wp_scripts()->registered['fqj-select2-js']->src );
+		$this->assertStringStartsWith( FQJ_PLUGIN_URL, wp_styles()->registered['fqj-select2-css']->src );
+		$this->assertStringNotContainsString( 'cdnjs', wp_scripts()->registered['fqj-select2-js']->src );
+
 		$data = wp_scripts()->get_data( 'fqj-admin-js', 'data' );
 		$this->assertStringContainsString( 'var fqjAdmin', $data );
 		$this->assertStringContainsString( 'admin-ajax.php', $data );
+	}
+
+	public function test_admin_assets_reuse_registered_select2() {
+		// Earlier tests leave these handles registered with the bundled copy as a dependency.
+		foreach ( array( 'fqj-admin-js', 'fqj-select2-js' ) as $handle ) {
+			wp_dequeue_script( $handle );
+			wp_deregister_script( $handle );
+		}
+		wp_register_script( 'select2', 'https://example.org/select2.js', array( 'jquery' ), '4', true );
+		$GLOBALS['post'] = get_post( $this->create_faq() ); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+		fqj_admin_assets( 'post.php' );
+		wp_deregister_script( 'select2' );
+
+		$this->assertFalse( wp_script_is( 'fqj-select2-js', 'enqueued' ) );
+		$this->assertContains( 'select2', wp_scripts()->registered['fqj-admin-js']->deps );
 	}
 
 	public function test_admin_assets_skip_other_screens_and_types() {

@@ -139,6 +139,59 @@ class Test_FQJ_Ajax extends WP_Ajax_UnitTestCase {
 		$this->assert_rejects_bad_nonce( 'fqj_get_post_types' );
 	}
 
+	/**
+	 * Assert the admin lookup action is denied to a role that cannot edit posts.
+	 *
+	 * @param string $action AJAX action.
+	 */
+	protected function assert_lookup_denied_to_subscriber( $action ) {
+		$this->_setRole( 'subscriber' );
+		$this->nonce( 'fqj_admin_nonce' );
+		$_GET['q'] = 'a';
+
+		$resp = $this->call( $action );
+		$this->assertFalse( $resp['success'] );
+		$this->assertSame( 'Permission denied', $resp['data']['message'] );
+	}
+
+	public function test_search_posts_requires_edit_posts() {
+		self::factory()->post->create( array( 'post_title' => 'Alpha' ) );
+		$this->assert_lookup_denied_to_subscriber( 'fqj_search_posts' );
+	}
+
+	public function test_search_terms_requires_edit_posts() {
+		$this->assert_lookup_denied_to_subscriber( 'fqj_search_terms' );
+	}
+
+	public function test_get_post_types_requires_edit_posts() {
+		$this->assert_lookup_denied_to_subscriber( 'fqj_get_post_types' );
+	}
+
+	public function test_search_posts_allows_editors() {
+		$id = self::factory()->post->create( array( 'post_title' => 'Alpha' ) );
+		$this->_setRole( 'editor' );
+		$this->nonce( 'fqj_admin_nonce' );
+		$_GET['q'] = 'Alpha';
+
+		$this->assertSame( array( $id ), wp_list_pluck( $this->call( 'fqj_search_posts' ), 'id' ) );
+	}
+
+	public function test_search_terms_allows_editors() {
+		$cat = self::factory()->category->create( array( 'name' => 'Alpha' ) );
+		$this->_setRole( 'editor' );
+		$this->nonce( 'fqj_admin_nonce' );
+		$_GET['q'] = 'Alpha';
+
+		$this->assertContains( $cat, wp_list_pluck( $this->call( 'fqj_search_terms' ), 'id' ) );
+	}
+
+	public function test_get_post_types_allows_editors() {
+		$this->_setRole( 'editor' );
+		$this->nonce( 'fqj_admin_nonce' );
+
+		$this->assertContains( 'post', wp_list_pluck( $this->call( 'fqj_get_post_types' ), 'name' ) );
+	}
+
 	public function test_process_queue_now() {
 		set_transient( fqj_cache_key( 11 ), 'x' );
 		fqj_queue_add_posts( array( 11, 12, 13 ) );

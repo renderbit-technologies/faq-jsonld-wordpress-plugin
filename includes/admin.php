@@ -25,24 +25,43 @@ function fqj_admin_assets( $hook ) {
 		return;
 	}
 
-	wp_enqueue_style(
-		'fqj-select2-css',
-		'https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css',
-		array(),
-		'4.0.13'
-	);
-	wp_enqueue_script(
-		'fqj-select2-js',
-		'https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js',
-		array( 'jquery' ),
-		'4.0.13',
-		true
-	);
+	/*
+	 * Select2 is bundled in assets/vendor/select2 (no third-party CDN). If another plugin (e.g. WooCommerce's
+	 * selectWoo) has already registered a Select2 build, reuse it as the dependency instead of loading a second
+	 * copy that would clash on jQuery.fn.select2.
+	 */
+	$select2_handle = 'fqj-select2-js';
+	if ( wp_script_is( 'select2', 'registered' ) ) {
+		$select2_handle = 'select2';
+	} elseif ( wp_script_is( 'selectWoo', 'registered' ) ) {
+		$select2_handle = 'selectWoo';
+	}
+
+	if ( 'fqj-select2-js' === $select2_handle ) {
+		wp_enqueue_style(
+			'fqj-select2-css',
+			FQJ_PLUGIN_URL . 'assets/vendor/select2/select2.min.css',
+			array(),
+			'4.0.13'
+		);
+		wp_enqueue_script(
+			'fqj-select2-js',
+			FQJ_PLUGIN_URL . 'assets/vendor/select2/select2.min.js',
+			array( 'jquery' ),
+			'4.0.13',
+			true
+		);
+	} else {
+		wp_enqueue_script( $select2_handle );
+		if ( wp_style_is( $select2_handle, 'registered' ) ) {
+			wp_enqueue_style( $select2_handle );
+		}
+	}
 
 	wp_enqueue_script(
 		'fqj-admin-js',
 		FQJ_PLUGIN_URL . 'assets/js/fqj-admin.js',
-		array( 'jquery', 'fqj-select2-js' ),
+		array( 'jquery', $select2_handle ),
 		'1.0',
 		true
 	);
@@ -276,6 +295,9 @@ add_action( 'admin_notices', 'fqj_rejected_urls_notice' );
  */
 function fqj_ajax_search_posts() {
 	check_ajax_referer( 'fqj_admin_nonce', 'nonce' );
+	if ( ! current_user_can( 'edit_posts' ) ) {
+		wp_send_json_error( array( 'message' => 'Permission denied' ), 403 );
+	}
 	$q       = isset( $_REQUEST['q'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['q'] ) ) : '';
 	$results = array();
 	if ( strlen( $q ) < 1 ) {
@@ -304,6 +326,9 @@ add_action( 'wp_ajax_fqj_search_posts', 'fqj_ajax_search_posts' );
  */
 function fqj_ajax_search_terms() {
 	check_ajax_referer( 'fqj_admin_nonce', 'nonce' );
+	if ( ! current_user_can( 'edit_posts' ) ) {
+		wp_send_json_error( array( 'message' => 'Permission denied' ), 403 );
+	}
 	$q       = isset( $_REQUEST['q'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['q'] ) ) : '';
 	$results = array();
 	if ( strlen( $q ) < 1 ) {
@@ -339,6 +364,9 @@ add_action( 'wp_ajax_fqj_search_terms', 'fqj_ajax_search_terms' );
  */
 function fqj_ajax_get_post_types() {
 	check_ajax_referer( 'fqj_admin_nonce', 'nonce' );
+	if ( ! current_user_can( 'edit_posts' ) ) {
+		wp_send_json_error( array( 'message' => 'Permission denied' ), 403 );
+	}
 	$pts = get_post_types( array( 'public' => true ), 'objects' );
 	$out = array();
 	foreach ( $pts as $k => $obj ) {

@@ -132,3 +132,19 @@ jobs:
       - run: npm ci
 
       - run: npm test -- --coverage
+
+  release-zip:
+    name: Release zip contents
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: "8.3"
+          coverage: none
+
+      - name: Build and verify zip
+        run: |
+          composer build-zip
+          composer check-zip

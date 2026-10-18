@@ -25,11 +25,13 @@ jobs:
         with:
           php-version: "8.1"
 
-      - name: Install Composer dependencies
-        run: composer install --no-dev --prefer-dist --no-progress
-
+      # The plugin has no runtime Composer dependencies, so the zip is built from tracked files only
+      # (see .gitattributes for what is excluded) and no `composer install` is needed.
       - name: Build plugin zip
         run: composer build-zip
+
+      - name: Verify zip contents
+        run: composer check-zip
 
       - name: Create GitHub Release (draft) and upload zip
         uses: softprops/action-gh-release@v3
