@@ -1,6 +1,6 @@
 <?php
 /**
- * Uninstall script for FAQ JSON-LD Manager (Enterprise).
+ * Uninstall script for FAQ JSON-LD Manager.
  *
  * WARNING: This removes plugin options, scheduled events, transients, post meta and the mapping table
  * permanently, on every site of a multisite network. The faq_item posts are kept unless the
@@ -69,11 +69,10 @@ $fqj_uninstall_site = function () {
 	delete_post_meta_by_key( 'fqj_assoc_type' );
 	delete_post_meta_by_key( 'fqj_assoc_data_json' );
 
-	// Drop tables. The names are built from $wpdb->prefix only, so they are safe to interpolate.
+	// Drop tables.
 	foreach ( array( 'fqj_mappings', 'fqj_queue' ) as $fqj_table ) {
-		$table = $wpdb->prefix . $fqj_table;
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		$wpdb->query( "DROP TABLE IF EXISTS {$table}" );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
+		$wpdb->query( $wpdb->prepare( 'DROP TABLE IF EXISTS %i', $wpdb->prefix . $fqj_table ) );
 	}
 };
 

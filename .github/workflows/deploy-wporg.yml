@@ -1,0 +1,36 @@
+name: Deploy to WordPress.org
+
+# Publishing a GitHub release (the draft created by draft-release.yml) commits it to the plugin's
+# WordPress.org SVN repository: trunk, a tag named after the version, and the .wordpress-org assets.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: wordpress-org
+    steps:
+      - uses: actions/checkout@v7
+
+      # WordPress.org serves the version named by readme.txt's Stable tag, so a mismatch would publish the
+      # wrong code or none at all.
+      - name: Check version numbers match the tag
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          tag="${tag#v}"
+          header="$(sed -n 's/^ \* Version: *//p' faq-jsonld.php)"
+          constant="$(sed -n "s/^define( 'FQJ_VERSION', '\(.*\)' );$/\1/p" faq-jsonld.php)"
+          stable="$(sed -n 's/^Stable tag: *//p' readme.txt)"
+          echo "tag=$tag header=$header FQJ_VERSION=$constant stable=$stable"
+          [ "$tag" = "$header" ] && [ "$tag" = "$constant" ] && [ "$tag" = "$stable" ]
+
+      - name: Deploy to WordPress.org SVN
+        uses: 10up/action-wordpress-plugin-deploy@54bd289b8525fd23a5c365ec369185f2966529c2 # 2.3.0
+        env:
+          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+          SLUG: faq-jsonld

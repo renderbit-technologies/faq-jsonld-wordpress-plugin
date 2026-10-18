@@ -4,6 +4,7 @@
 /.cursor            export-ignore
 /.env.testing.example export-ignore
 /.github            export-ignore
+/.wordpress-org     export-ignore
 /.gitattributes     export-ignore
 /.gitignore         export-ignore
 /bin                export-ignore

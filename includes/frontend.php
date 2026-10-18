@@ -165,29 +165,24 @@ function fqj_maybe_print_faq_jsonld() {
 	global $wpdb;
 	$table = fqj_table_name();
 
-	// Build WHERE clauses for each candidate.
-	$where_clauses = array();
-	$params        = array();
+	// Build one WHERE clause per candidate.
+	// Use exact match for all types to prevent partial matches (e.g. post ID 1 matching 10, 11, etc.)
+	// Since we store scalar values directly (or serialized which resolves to string), = is safer.
+	// For 'url', if we wanted partial matches we'd need a different logic, but here we expect exact path match.
+	$params = array( $table );
 	foreach ( $candidate_values as $c ) {
-		// Use exact match for all types to prevent partial matches (e.g. post ID 1 matching 10, 11, etc.)
-		// Since we store scalar values directly (or serialized which resolves to string), = is safer.
-		// For 'url', if we wanted partial matches we'd need a different logic, but here we expect exact path match.
-		$where_clauses[] = '(mapping_type = %s AND mapping_value = %s)';
-		$params[]        = $c['type'];
-		$params[]        = (string) $c['value'];
+		$params[] = $c['type'];
+		$params[] = (string) $c['value'];
 	}
 
-	if ( empty( $where_clauses ) ) {
+	if ( empty( $candidate_values ) ) {
 		return;
 	}
 
-	$where_sql = implode( ' OR ', $where_clauses );
+	$where_sql = implode( ' OR ', array_fill( 0, count( $candidate_values ), '(mapping_type = %s AND mapping_value = %s)' ) );
 
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- placeholders live in $where_sql.
-	$sql = $wpdb->prepare( "SELECT DISTINCT faq_id FROM {$table} WHERE {$where_sql}", $params );
-
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-	$faq_ids = $wpdb->get_col( $sql );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- placeholders live in $where_sql.
+	$faq_ids = $wpdb->get_col( $wpdb->prepare( "SELECT DISTINCT faq_id FROM %i WHERE {$where_sql}", $params ) );
 	if ( empty( $faq_ids ) ) {
 		// cache negative result to avoid repeated queries.
 		set_transient( $transient_key, '__FQJ_EMPTY__', $cache_ttl );

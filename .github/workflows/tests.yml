@@ -51,6 +51,22 @@ jobs:
       - name: Run PHPCS
         run: vendor/bin/phpcs -q --report=checkstyle | cs2pr
 
+  plugin-check:
+    name: Plugin Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Check what ships (the git archive, as in the release zip and WordPress.org SVN), not the dev files.
+      - name: Export plugin files
+        run: mkdir -p build/faq-jsonld && git archive HEAD | tar -x -C build/faq-jsonld
+
+      - uses: WordPress/plugin-check-action@10857da14b6c2246d15402b3e69f777edcf8c12e # v1.1.9
+        with:
+          build-dir: build/faq-jsonld
+          slug: faq-jsonld
+          strict: true
+
   phpunit:
     name: PHPUnit (PHP ${{ matrix.php }}, WP ${{ matrix.wp }}${{ matrix.multisite && ', multisite' || '' }})
     runs-on: ubuntu-latest
