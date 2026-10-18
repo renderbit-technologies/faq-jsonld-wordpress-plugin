@@ -37,16 +37,19 @@ function fqj_admin_assets( $hook ) {
 		$select2_handle = 'selectWoo';
 	}
 
+	// The unminified Select2 sources ship alongside the minified build; SCRIPT_DEBUG loads them.
+	$suffix = ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ? '' : '.min';
+
 	if ( 'fqj-select2-js' === $select2_handle ) {
 		wp_enqueue_style(
 			'fqj-select2-css',
-			FQJ_PLUGIN_URL . 'assets/vendor/select2/select2.min.css',
+			FQJ_PLUGIN_URL . 'assets/vendor/select2/select2' . $suffix . '.css',
 			array(),
 			'4.0.13'
 		);
 		wp_enqueue_script(
 			'fqj-select2-js',
-			FQJ_PLUGIN_URL . 'assets/vendor/select2/select2.min.js',
+			FQJ_PLUGIN_URL . 'assets/vendor/select2/select2' . $suffix . '.js',
 			array( 'jquery' ),
 			'4.0.13',
 			true
@@ -66,7 +69,7 @@ function fqj_admin_assets( $hook ) {
 		} else {
 			wp_enqueue_style(
 				'fqj-select2-css',
-				FQJ_PLUGIN_URL . 'assets/vendor/select2/select2.min.css',
+				FQJ_PLUGIN_URL . 'assets/vendor/select2/select2' . $suffix . '.css',
 				array(),
 				'4.0.13'
 			);

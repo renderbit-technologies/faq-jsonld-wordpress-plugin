@@ -90,17 +90,19 @@ function fqj_queue_add_items( $type, $values ) {
 	$table = fqj_queue_table_name();
 	foreach ( array_chunk( array_values( $clean ), 200 ) as $chunk ) {
 		$placeholders = implode( ',', array_fill( 0, count( $chunk ), '(%s,%s)' ) );
-		$args         = array();
+		$args         = array( $table );
 		foreach ( $chunk as $value ) {
 			$args[] = $type;
 			$args[] = $value;
 		}
-		$suffix = $is_job ? ' ON DUPLICATE KEY UPDATE job_cursor = 0' : '';
-		$insert = $is_job ? 'INSERT' : 'INSERT IGNORE';
-		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
-		$wpdb->query(
-			$wpdb->prepare( "{$insert} INTO {$table} (item_type, item_value) VALUES {$placeholders}{$suffix}", $args )
-		);
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- placeholders live in $placeholders.
+		if ( $is_job ) {
+			$wpdb->query(
+				$wpdb->prepare( "INSERT INTO %i (item_type, item_value) VALUES {$placeholders} ON DUPLICATE KEY UPDATE job_cursor = 0", $args )
+			);
+		} else {
+			$wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO %i (item_type, item_value) VALUES {$placeholders}", $args ) );
+		}
 		// phpcs:enable
 	}
 
@@ -134,9 +136,9 @@ function fqj_queue_pop_posts( $limit = 100 ) {
 	}
 
 	$table = fqj_queue_table_name();
-	// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 	$rows = $wpdb->get_results(
-		$wpdb->prepare( "SELECT id, item_value FROM {$table} WHERE item_type = 'post' ORDER BY id ASC LIMIT %d", $limit ),
+		$wpdb->prepare( "SELECT id, item_value FROM %i WHERE item_type = 'post' ORDER BY id ASC LIMIT %d", $table, $limit ),
 		ARRAY_A
 	);
 	if ( empty( $rows ) ) {
@@ -145,8 +147,8 @@ function fqj_queue_pop_posts( $limit = 100 ) {
 
 	$row_ids      = array_map( 'intval', wp_list_pluck( $rows, 'id' ) );
 	$placeholders = implode( ',', array_fill( 0, count( $row_ids ), '%d' ) );
-	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
-	$wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE id IN ({$placeholders})", $row_ids ) );
+	// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- placeholders live in $placeholders.
+	$wpdb->query( $wpdb->prepare( "DELETE FROM %i WHERE id IN ({$placeholders})", array_merge( array( $table ), $row_ids ) ) );
 	// phpcs:enable
 
 	return array_map( 'intval', wp_list_pluck( $rows, 'item_value' ) );
@@ -161,8 +163,8 @@ function fqj_queue_length() {
 	global $wpdb;
 
 	$table = fqj_queue_table_name();
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-	return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+	return (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i', $table ) );
 }
 
 /**
@@ -285,9 +287,9 @@ function fqj_queue_process_jobs( $budget ) {
 
 	$done_count = 0;
 	while ( $done_count < $budget ) {
-		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		$job = $wpdb->get_row(
-			"SELECT id, item_type, item_value, job_cursor FROM {$table} WHERE item_type IN ('post_type','term') ORDER BY id ASC LIMIT 1",
+			$wpdb->prepare( "SELECT id, item_type, item_value, job_cursor FROM %i WHERE item_type IN ('post_type','term') ORDER BY id ASC LIMIT 1", $table ),
 			ARRAY_A
 		);
 		// phpcs:enable

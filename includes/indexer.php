@@ -64,8 +64,8 @@ function fqj_create_table() {
 	dbDelta( $queue_sql );
 
 	// Record the version only if the table exists, so a failed run retries on the next request.
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-	if ( $wpdb->get_results( "DESCRIBE {$table_name}" ) && $wpdb->get_results( "DESCRIBE {$queue_table}" ) ) {
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+	if ( $wpdb->get_results( $wpdb->prepare( 'DESCRIBE %i', $table_name ) ) && $wpdb->get_results( $wpdb->prepare( 'DESCRIBE %i', $queue_table ) ) ) {
 		update_option( FQJ_DB_VERSION_OPTION, FQJ_DB_VERSION );
 	}
 }
@@ -215,8 +215,8 @@ function fqj_delete_mappings_for_faq( $faq_id ) {
 function fqj_get_mappings_for_faq( $faq_id ) {
 	global $wpdb;
 	$table = fqj_table_name();
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-	$rows = $wpdb->get_results( $wpdb->prepare( "SELECT mapping_type, mapping_value FROM {$table} WHERE faq_id = %d", intval( $faq_id ) ), ARRAY_A );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+	$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT mapping_type, mapping_value FROM %i WHERE faq_id = %d', $table, intval( $faq_id ) ), ARRAY_A );
 
 	$mappings = array();
 	foreach ( (array) $rows as $row ) {

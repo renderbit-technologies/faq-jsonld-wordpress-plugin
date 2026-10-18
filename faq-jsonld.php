@@ -1,10 +1,9 @@
 <?php
 /**
- * Plugin Name: FAQ JSON-LD Manager (Enterprise, queue-enabled)
+ * Plugin Name: FAQ JSON-LD Manager
  * Plugin URI:  https://github.com/renderbit-technologies/faq-jsonld-wordpress-plugin
- * Description: Manage FAQ items as CPT and inject FAQ JSON-LD. Uses a custom mapping table (fast), per-post
- *              transient caching, background invalidation queue (WP-Cron), settings UI and WP-CLI tools.
- * Version:     3.0.0
+ * Description: Manage FAQ items as a custom post type and output FAQPage JSON-LD on the posts and pages they apply to.
+ * Version:     3.0.1
  * Requires at least: 6.5
  * Requires PHP: 7.2
  * Author:      Renderbit Technologies
@@ -22,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // phpcs:disable PSR1.Files.SideEffects
 
 // Keep in sync with the Version header above; used to version the plugin's own assets.
-define( 'FQJ_VERSION', '3.0.0' );
+define( 'FQJ_VERSION', '3.0.1' );
 // Upper bound for the invalidation batch size setting.
 define( 'FQJ_MAX_BATCH_SIZE', 5000 );
 define( 'FQJ_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
