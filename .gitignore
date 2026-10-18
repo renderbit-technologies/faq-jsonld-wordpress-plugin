@@ -43,3 +43,6 @@ vendor/
 .phpunit.cache/
 coverage/
 coverage.xml
+
+# Allow the committed example of the local test settings
+!.env.testing.example

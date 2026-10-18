@@ -55,6 +55,7 @@
     "phpunit/phpunit": "^9.6",
     "yoast/phpunit-polyfills": "^4.0",
     "wp-phpunit/wp-phpunit": "^7.1",
-    "roots/wordpress-no-content": "^7.1"
+    "roots/wordpress-no-content": "^7.1",
+    "vlucas/phpdotenv": "^5.6"
   }
 }

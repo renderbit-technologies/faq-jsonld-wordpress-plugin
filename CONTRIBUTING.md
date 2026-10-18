@@ -25,11 +25,11 @@ CI runs all of these on every pull request (`.github/workflows/tests.yml`).
 
 ```bash
 composer install
-WP_TESTS_DB_NAME=wordpress_test WP_TESTS_DB_USER=root WP_TESTS_DB_PASSWORD=secret WP_TESTS_DB_HOST=127.0.0.1 \
-  composer test
+cp .env.testing.example .env.testing   # then set your database credentials
+composer test
 ```
 
-The `WP_TESTS_DB_*` variables default to `wordpress_test`, `root`, an empty password and `127.0.0.1`. Tests live in `tests/php`.
+The test bootstrap loads `WP_TESTS_DB_*` settings from `.env.testing`, which is gitignored. Variables already set in your shell or in CI take precedence. Without either, they default to `wordpress_test`, `root`, an empty password and `127.0.0.1`. Tests live in `tests/php`.
 
 **JavaScript (Jest).** Needs Node 18+:
 
