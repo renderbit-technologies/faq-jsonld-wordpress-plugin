@@ -48,7 +48,7 @@ Tests live in `tests/js`.
 
 The plugin is published on WordPress.org as `faq-jsonld`. The shipped files are whatever `git archive` produces, so `.gitattributes` decides what reaches both the release zip and WordPress.org SVN.
 
-1. Set the new version in `composer.json` (then `composer update --lock`), the `Version` header and `FQJ_VERSION` in `faq-jsonld.php`, and `Stable tag` in `readme.txt`. Add a `readme.txt` changelog entry and bump `Tested up to` when needed.
+1. Run `composer bump-patch` (or `bump-minor`, `bump-major`). It runs `bin/bump-version.php`, which sets the new version in `composer.json`, the `Version` header and `FQJ_VERSION` in `faq-jsonld.php`, and `Stable tag` in `readme.txt`, then refreshes the `composer.lock` hash. Add a `readme.txt` changelog entry and bump `Tested up to` when needed.
 2. Merge to `main`, then push a `vX.Y.Z` tag. `draft-release.yml` builds the zip and creates a draft GitHub release.
 3. Publish the draft. `deploy-wporg.yml` checks that the tag and all three version numbers match, then commits trunk, the version tag and the `.wordpress-org/` directory (banners, icons, screenshots) to SVN.
 
