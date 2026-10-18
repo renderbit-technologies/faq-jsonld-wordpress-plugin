@@ -14,3 +14,4 @@
 /package-lock.json  export-ignore
 /phpcs.xml          export-ignore
 /phpunit.xml.dist   export-ignore
+/phpunit-multisite.xml.dist export-ignore

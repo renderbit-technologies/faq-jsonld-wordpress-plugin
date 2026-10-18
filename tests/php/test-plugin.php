@@ -117,6 +117,9 @@ class Test_FQJ_Plugin extends FQJ_TestCase {
 		$this->assertFalse( wp_next_scheduled( 'fqj_data_migration' ) );
 	}
 
+	/**
+	 * @group ms-excluded
+	 */
 	public function test_network_wide_flag_is_harmless_on_single_site() {
 		if ( is_multisite() ) {
 			$this->markTestSkipped( 'Single-site behaviour.' );
@@ -128,6 +131,9 @@ class Test_FQJ_Plugin extends FQJ_TestCase {
 		$this->assertFalse( wp_next_scheduled( 'fqj_process_invalidation_queue' ) );
 	}
 
+	/**
+	 * @group ms-excluded
+	 */
 	public function test_for_each_site_runs_once_on_single_site() {
 		if ( is_multisite() ) {
 			$this->markTestSkipped( 'Single-site behaviour.' );

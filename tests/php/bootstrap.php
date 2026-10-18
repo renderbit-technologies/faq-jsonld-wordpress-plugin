@@ -29,7 +29,8 @@ tests_add_filter(
 	}
 );
 
-// Create the mapping table and default options the same way activation does.
+// Create the mapping table and default options the same way activation does (for the main site on multisite;
+// the multisite tests set up other sites themselves).
 tests_add_filter(
 	'init',
 	function () {
@@ -41,3 +42,4 @@ tests_add_filter(
 require $tests_dir . '/includes/bootstrap.php';
 
 require_once __DIR__ . '/class-fqj-testcase.php';
+require_once __DIR__ . '/class-fqj-multisite-testcase.php';
