@@ -25,25 +25,59 @@ function fqj_admin_assets( $hook ) {
 		return;
 	}
 
-	wp_enqueue_style(
-		'fqj-select2-css',
-		'https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css',
-		array(),
-		'4.0.13'
-	);
-	wp_enqueue_script(
-		'fqj-select2-js',
-		'https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js',
-		array( 'jquery' ),
-		'4.0.13',
-		true
-	);
+	/*
+	 * Select2 is bundled in assets/vendor/select2 (no third-party CDN). If another plugin (e.g. WooCommerce's
+	 * selectWoo) has already registered a Select2 build, reuse it as the dependency instead of loading a second
+	 * copy that would clash on jQuery.fn.select2.
+	 */
+	$select2_handle = 'fqj-select2-js';
+	if ( wp_script_is( 'select2', 'registered' ) ) {
+		$select2_handle = 'select2';
+	} elseif ( wp_script_is( 'selectWoo', 'registered' ) ) {
+		$select2_handle = 'selectWoo';
+	}
+
+	if ( 'fqj-select2-js' === $select2_handle ) {
+		wp_enqueue_style(
+			'fqj-select2-css',
+			FQJ_PLUGIN_URL . 'assets/vendor/select2/select2.min.css',
+			array(),
+			'4.0.13'
+		);
+		wp_enqueue_script(
+			'fqj-select2-js',
+			FQJ_PLUGIN_URL . 'assets/vendor/select2/select2.min.js',
+			array( 'jquery' ),
+			'4.0.13',
+			true
+		);
+	} else {
+		wp_enqueue_script( $select2_handle );
+		// The style handle can differ from the script's (WooCommerce registers selectWoo JS with select2 CSS).
+		$style_handle = '';
+		foreach ( array( $select2_handle, 'select2', 'selectWoo' ) as $candidate ) {
+			if ( wp_style_is( $candidate, 'registered' ) ) {
+				$style_handle = $candidate;
+				break;
+			}
+		}
+		if ( $style_handle ) {
+			wp_enqueue_style( $style_handle );
+		} else {
+			wp_enqueue_style(
+				'fqj-select2-css',
+				FQJ_PLUGIN_URL . 'assets/vendor/select2/select2.min.css',
+				array(),
+				'4.0.13'
+			);
+		}
+	}
 
 	wp_enqueue_script(
 		'fqj-admin-js',
 		FQJ_PLUGIN_URL . 'assets/js/fqj-admin.js',
-		array( 'jquery', 'fqj-select2-js' ),
-		'1.0',
+		array( 'jquery', $select2_handle ),
+		FQJ_VERSION,
 		true
 	);
 	wp_localize_script(
@@ -53,6 +87,15 @@ function fqj_admin_assets( $hook ) {
 			'ajax_url' => admin_url( 'admin-ajax.php' ),
 			'nonce'    => wp_create_nonce( 'fqj_admin_nonce' ),
 			'post_id'  => get_the_ID(),
+			'i18n'     => array(
+				'urlsHelp'         => __( 'Enter one full URL per line (e.g. https://example.com/about/)', 'faq-jsonld' ),
+				'postsHelp'        => __( 'Search posts/pages and add multiple results.', 'faq-jsonld' ),
+				'postsPlaceholder' => __( 'Search posts by title...', 'faq-jsonld' ),
+				'postTypesHelp'    => __( 'Select post type(s) to associate this FAQ with.', 'faq-jsonld' ),
+				'termsHelp'        => __( 'Search taxonomy terms and add multiple results.', 'faq-jsonld' ),
+				'termsPlaceholder' => __( 'Search terms by name...', 'faq-jsonld' ),
+				'globalHelp'       => __( 'This FAQ will be included site-wide.', 'faq-jsonld' ),
+			),
 		)
 	);
 }
@@ -64,7 +107,7 @@ add_action( 'admin_enqueue_scripts', 'fqj_admin_assets' );
 function fqj_add_meta_boxes() {
 	add_meta_box(
 		'fqj_assoc_rules',
-		'Associations & Output',
+		__( 'Associations & Output', 'faq-jsonld' ),
 		'fqj_assoc_rules_meta_box_cb',
 		'faq_item',
 		'normal',
@@ -101,7 +144,8 @@ function fqj_assoc_rules_meta_box_cb( $post ) {
 					$text .= ' (' . $p->post_status . ')';
 				}
 			} else {
-				$text = 'Post #' . $pid . ' (not found)';
+				/* translators: %d: post ID. */
+				$text = sprintf( __( 'Post #%d (not found)', 'faq-jsonld' ), $pid );
 			}
 			$hydrated_posts[] = array(
 				'id'   => $pid,
@@ -118,7 +162,8 @@ function fqj_assoc_rules_meta_box_cb( $post ) {
 			if ( $term && ! is_wp_error( $term ) ) {
 				$text = $term->name . ' (' . $term->taxonomy . ')';
 			} else {
-				$text = 'Term #' . $tid . ' (not found)';
+				/* translators: %d: term ID. */
+				$text = sprintf( __( 'Term #%d (not found)', 'faq-jsonld' ), $tid );
 			}
 			$hydrated_terms[] = array(
 				'id'   => $tid,
@@ -135,14 +180,14 @@ function fqj_assoc_rules_meta_box_cb( $post ) {
 	$assoc_type = $assoc_type ? $assoc_type : 'urls';
 
 	$assoc_types = array(
-		'urls'       => 'By URLs (one per line)',
-		'posts'      => 'By Posts (search & multi-select)',
-		'post_types' => 'By Post Types (apply to all posts of selected types)',
-		'tax_terms'  => 'By Taxonomy Terms (search & multi-select)',
-		'global'     => 'Global (site-wide)',
+		'urls'       => __( 'By URLs (one per line)', 'faq-jsonld' ),
+		'posts'      => __( 'By Posts (search & multi-select)', 'faq-jsonld' ),
+		'post_types' => __( 'By Post Types (apply to all posts of selected types)', 'faq-jsonld' ),
+		'tax_terms'  => __( 'By Taxonomy Terms (search & multi-select)', 'faq-jsonld' ),
+		'global'     => __( 'Global (site-wide)', 'faq-jsonld' ),
 	);
 
-	echo '<p><label for="fqj_assoc_type"><strong>Association Type</strong></label></p>';
+	echo '<p><label for="fqj_assoc_type"><strong>' . esc_html__( 'Association Type', 'faq-jsonld' ) . '</strong></label></p>';
 	echo '<select id="fqj_assoc_type" name="fqj_assoc_type" style="width:100%;max-width:400px;">';
 	foreach ( $assoc_types as $k => $label ) {
 		echo '<option value="' . esc_attr( $k ) . '"' . selected( $assoc_type, $k, false ) . '>' . esc_html( $label ) . '</option>';
@@ -154,8 +199,7 @@ function fqj_assoc_rules_meta_box_cb( $post ) {
 
 	echo '<div id="fqj_assoc_container" style="margin-top:12px;"></div>';
 
-	echo '<p class="description">Enter association details. Use the "By Posts" option to search and multi-select ' .
-		'posts/pages. For large sites, prefer Post Types or Taxonomy Terms.</p>';
+	echo '<p class="description">' . esc_html__( 'Enter association details. Use the "By Posts" option to search and multi-select posts. For large sites, prefer Post Types or Taxonomy Terms.', 'faq-jsonld' ) . '</p>';
 }
 
 /**
@@ -182,7 +226,11 @@ function fqj_save_meta_handler( $post_id, $post ) {
 	}
 
 	$assoc_type = isset( $_POST['fqj_assoc_type'] ) ? sanitize_text_field( wp_unslash( $_POST['fqj_assoc_type'] ) ) : 'urls';
-	$payload    = array();
+	if ( ! in_array( $assoc_type, array( 'urls', 'posts', 'post_types', 'tax_terms', 'global' ), true ) ) {
+		// Unknown type: leave the stored meta and mappings untouched.
+		return;
+	}
+	$payload = array();
 
 	// Drop any notice left over from an earlier save.
 	delete_transient( 'fqj_rejected_urls_' . get_current_user_id() . '_' . $post_id );
@@ -276,6 +324,9 @@ add_action( 'admin_notices', 'fqj_rejected_urls_notice' );
  */
 function fqj_ajax_search_posts() {
 	check_ajax_referer( 'fqj_admin_nonce', 'nonce' );
+	if ( ! current_user_can( 'edit_posts' ) ) {
+		wp_send_json_error( array( 'message' => __( 'Permission denied', 'faq-jsonld' ) ), 403 );
+	}
 	$q       = isset( $_REQUEST['q'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['q'] ) ) : '';
 	$results = array();
 	if ( strlen( $q ) < 1 ) {
@@ -284,7 +335,7 @@ function fqj_ajax_search_posts() {
 
 	$args  = array(
 		's'              => $q,
-		'post_type'      => array( 'post', 'page' ),
+		'post_type'      => array_values( array_diff( get_post_types( array( 'public' => true ) ), array( 'attachment', 'faq_item' ) ) ),
 		'posts_per_page' => 20,
 		'post_status'    => 'publish',
 	);
@@ -304,6 +355,9 @@ add_action( 'wp_ajax_fqj_search_posts', 'fqj_ajax_search_posts' );
  */
 function fqj_ajax_search_terms() {
 	check_ajax_referer( 'fqj_admin_nonce', 'nonce' );
+	if ( ! current_user_can( 'edit_posts' ) ) {
+		wp_send_json_error( array( 'message' => __( 'Permission denied', 'faq-jsonld' ) ), 403 );
+	}
 	$q       = isset( $_REQUEST['q'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['q'] ) ) : '';
 	$results = array();
 	if ( strlen( $q ) < 1 ) {
@@ -339,6 +393,9 @@ add_action( 'wp_ajax_fqj_search_terms', 'fqj_ajax_search_terms' );
  */
 function fqj_ajax_get_post_types() {
 	check_ajax_referer( 'fqj_admin_nonce', 'nonce' );
+	if ( ! current_user_can( 'edit_posts' ) ) {
+		wp_send_json_error( array( 'message' => __( 'Permission denied', 'faq-jsonld' ) ), 403 );
+	}
 	$pts = get_post_types( array( 'public' => true ), 'objects' );
 	$out = array();
 	foreach ( $pts as $k => $obj ) {

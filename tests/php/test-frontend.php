@@ -10,23 +10,26 @@
  */
 class Test_FQJ_Frontend extends FQJ_TestCase {
 
-	public function test_no_output_without_global_post() {
-		unset( $GLOBALS['post'] );
+	public function test_no_output_without_queried_post() {
+		$this->go_to( home_url( '/' ) );
 		ob_start();
 		fqj_maybe_print_faq_jsonld();
 		$this->assertSame( '', ob_get_clean() );
 	}
 
 	public function test_no_output_in_admin() {
-		set_current_screen( 'dashboard' );
 		$post = self::factory()->post->create();
 		$this->create_faq( 'Q', 'A', array( 'global' => true ) );
 
-		$this->assertSame( '', $this->render_head_for( $post ) );
+		$this->go_to( get_permalink( $post ) );
+		set_current_screen( 'dashboard' );
+		ob_start();
+		fqj_maybe_print_faq_jsonld();
+		$this->assertSame( '', ob_get_clean() );
 		set_current_screen( 'front' );
 	}
 
-	public function test_post_mapping_outputs_faq_section() {
+	public function test_post_mapping_outputs_faq_page() {
 		$post = self::factory()->post->create();
 		$this->create_faq( 'How much?', 'Ten dollars.', array( 'posts' => array( $post ) ) );
 
@@ -36,7 +39,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 		$this->assertSame(
 			array(
 				'@context'   => 'https://schema.org',
-				'@type'      => 'FAQSection',
+				'@type'      => 'FAQPage',
 				'mainEntity' => array(
 					array(
 						'@type'          => 'Question',
@@ -61,13 +64,13 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 		$this->assertSame( 'FAQPage', $json['@type'] );
 	}
 
-	public function test_unknown_output_type_falls_back_to_faq_section() {
+	public function test_unknown_output_type_falls_back_to_faq_page() {
 		update_option( FQJ_OPTION_KEY, array( 'output_type' => 'nonsense' ) );
 		$post = self::factory()->post->create();
 		$this->create_faq( 'Q', 'A', array( 'posts' => array( $post ) ) );
 
 		$json = $this->extract_json_ld( $this->render_head_for( $post ) );
-		$this->assertSame( 'FAQSection', $json['@type'] );
+		$this->assertSame( 'FAQPage', $json['@type'] );
 	}
 
 	public function test_unmapped_post_gets_negative_cache() {
@@ -78,14 +81,14 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 		$html = $this->render_head_for( $post );
 		$this->assertStringContainsString( 'generated, no output', $html );
 		$this->assertStringNotContainsString( '<script', $html );
-		$this->assertSame( '__FQJ_EMPTY__', get_transient( 'fqj_faq_json_' . $post ) );
+		$this->assertSame( '__FQJ_EMPTY__', get_transient( fqj_cache_key( $post ) ) );
 
 		$this->assertStringContainsString( 'cached, no output', $this->render_head_for( $post ) );
 	}
 
 	public function test_cached_output_is_served_from_transient() {
 		$post = self::factory()->post->create();
-		set_transient( 'fqj_faq_json_' . $post, '<script type="application/ld+json">{"cached":true}</script>' );
+		set_transient( fqj_cache_key( $post ), '<script type="application/ld+json">{"cached":true}</script>' );
 
 		$html = $this->render_head_for( $post );
 		$this->assertStringContainsString( '(cached)', $html );
@@ -94,7 +97,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 
 	public function test_blank_cached_value_reports_unknown_state() {
 		$post = self::factory()->post->create();
-		set_transient( 'fqj_faq_json_' . $post, '   ' );
+		set_transient( fqj_cache_key( $post ), '   ' );
 		$this->assertStringContainsString( 'cached, unknown state', $this->render_head_for( $post ) );
 	}
 
@@ -104,11 +107,11 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 		$this->create_faq( 'Q', 'A', array( 'posts' => array( $post ) ) );
 
 		$html   = $this->render_head_for( $post );
-		$cached = get_transient( 'fqj_faq_json_' . $post );
+		$cached = get_transient( fqj_cache_key( $post ) );
 		$this->assertStringStartsWith( '<script type="application/ld+json">', $cached );
 		$this->assertStringContainsString( $cached, $html );
 
-		$timeout = (int) get_option( '_transient_timeout_fqj_faq_json_' . $post );
+		$timeout = (int) get_option( '_transient_timeout_' . fqj_cache_key( $post ) );
 		$this->assertEqualsWithDelta( time() + 600, $timeout, 5 );
 	}
 
@@ -152,7 +155,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 		global $wpdb;
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		$wpdb->delete(
-			FQJ_DB_TABLE,
+			fqj_table_name(),
 			array(
 				'faq_id'       => $faq,
 				'mapping_type' => 'post',
@@ -258,7 +261,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 
 		$html = $this->render_head_for( $post );
 		$this->assertNull( $this->extract_json_ld( $html ) );
-		$this->assertSame( '__FQJ_EMPTY__', get_transient( 'fqj_faq_json_' . $post ) );
+		$this->assertSame( '__FQJ_EMPTY__', get_transient( fqj_cache_key( $post ) ) );
 	}
 
 	public function test_faqs_with_empty_question_or_answer_are_skipped() {
@@ -269,7 +272,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 
 		$html = $this->render_head_for( $post );
 		$this->assertNull( $this->extract_json_ld( $html ) );
-		$this->assertSame( '__FQJ_EMPTY__', get_transient( 'fqj_faq_json_' . $post ) );
+		$this->assertSame( '__FQJ_EMPTY__', get_transient( fqj_cache_key( $post ) ) );
 	}
 
 	public function test_answer_html_is_stripped_and_unicode_kept() {
@@ -295,5 +298,116 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 		wp_delete_post( $gone, true );
 
 		$this->assertNull( $this->extract_json_ld( $this->render_head_for( $post ) ) );
+	}
+
+	public function test_legacy_faqsection_value_outputs_faq_page() {
+		update_option( FQJ_OPTION_KEY, array( 'output_type' => 'faqsection' ) );
+		$post = self::factory()->post->create();
+		$this->create_faq( 'Q', 'A', array( 'posts' => array( $post ) ) );
+
+		$json = $this->extract_json_ld( $this->render_head_for( $post ) );
+		$this->assertSame( 'FAQPage', $json['@type'] );
+	}
+
+	public function test_html_entities_are_decoded_and_whitespace_normalized() {
+		$post = self::factory()->post->create();
+		$this->create_faq(
+			'Don&#8217;t &amp; won&#039;t?',
+			"<p>Tom &amp; Jerry&nbsp;said &quot;hi&quot;.</p>\n\n<p>  Second   paragraph </p>",
+			array( 'posts' => array( $post ) )
+		);
+
+		$json = $this->extract_json_ld( $this->render_head_for( $post ) );
+		$this->assertSame( "Don\u{2019}t & won't?", $json['mainEntity'][0]['name'] );
+		$this->assertSame( "Tom & Jerry said \"hi\". Second paragraph", $json['mainEntity'][0]['acceptedAnswer']['text'] );
+	}
+
+	public function test_decoded_script_close_cannot_break_out_of_script_element() {
+		$post = self::factory()->post->create();
+		$this->create_faq(
+			'Title &lt;/script&gt;&lt;script&gt;alert(1)&lt;/script&gt;',
+			'<p>Answer &lt;/script&gt;&lt;script&gt;alert(1)&lt;/script&gt; &amp;amp;</p>',
+			array( 'posts' => array( $post ) )
+		);
+
+		$html = $this->render_head_for( $post );
+		$this->assertSame( 1, substr_count( strtolower( $html ), '</script>' ) );
+		$this->assertSame( 1, substr_count( strtolower( $html ), '<script' ) );
+
+		$json = $this->extract_json_ld( $html );
+		$this->assertSame( 'Title </script><script>alert(1)</script>', $json['mainEntity'][0]['name'] );
+		$this->assertSame( 'Answer </script><script>alert(1)</script> &amp;', $json['mainEntity'][0]['acceptedAnswer']['text'] );
+	}
+
+	public function test_blog_home_category_archive_and_search_output_nothing() {
+		$cat  = self::factory()->category->create();
+		$post = self::factory()->post->create( array( 'post_category' => array( $cat ) ) );
+		$this->create_faq( 'Global Q', 'Global A', array( 'global' => true ) );
+		$this->create_faq( 'Post Q', 'Post A', array( 'posts' => array( $post ) ) );
+
+		foreach ( array( home_url( '/' ), get_category_link( $cat ), home_url( '/?s=' . rawurlencode( 'anything' ) ) ) as $url ) {
+			$this->go_to( $url );
+			$this->assertFalse( is_singular(), $url );
+			ob_start();
+			fqj_maybe_print_faq_jsonld();
+			$this->assertSame( '', ob_get_clean(), $url );
+		}
+	}
+
+	public function test_singular_page_still_outputs_global_faq() {
+		$page = self::factory()->post->create( array( 'post_type' => 'page' ) );
+		$this->create_faq( 'Global Q', 'Global A', array( 'global' => true ) );
+
+		$json = $this->extract_json_ld( $this->render_head_for( $page ) );
+		$this->assertSame( 'Global Q', $json['mainEntity'][0]['name'] );
+	}
+
+	public function test_the_content_filters_do_not_pollute_answer() {
+		$callback = static function ( $content ) {
+			return $content . '<p>Share this</p>';
+		};
+		add_filter( 'the_content', $callback );
+
+		$post = self::factory()->post->create();
+		$this->create_faq( 'Q', 'Plain answer.', array( 'posts' => array( $post ) ) );
+
+		$json = $this->extract_json_ld( $this->render_head_for( $post ) );
+		remove_filter( 'the_content', $callback );
+		$this->assertSame( 'Plain answer.', $json['mainEntity'][0]['acceptedAnswer']['text'] );
+	}
+
+	public function test_shortcodes_render_in_answer() {
+		add_shortcode(
+			'fqj_test_sc',
+			static function () {
+				return '<b>rendered</b>';
+			}
+		);
+		$post = self::factory()->post->create();
+		$this->create_faq( 'Q', 'Value: [fqj_test_sc]', array( 'posts' => array( $post ) ) );
+
+		$json = $this->extract_json_ld( $this->render_head_for( $post ) );
+		remove_shortcode( 'fqj_test_sc' );
+		$this->assertSame( 'Value: rendered', $json['mainEntity'][0]['acceptedAnswer']['text'] );
+	}
+
+	public function test_text_filters_can_modify_question_and_answer() {
+		$q = static function ( $text, $faq ) {
+			return $text . ' [' . $faq->post_type . ']';
+		};
+		$a = static function ( $text ) {
+			return strtoupper( $text );
+		};
+		add_filter( 'fqj_question_text', $q, 10, 2 );
+		add_filter( 'fqj_answer_text', $a );
+
+		$post = self::factory()->post->create();
+		$this->create_faq( 'Q', 'answer', array( 'posts' => array( $post ) ) );
+
+		$json = $this->extract_json_ld( $this->render_head_for( $post ) );
+		remove_filter( 'fqj_question_text', $q, 10 );
+		remove_filter( 'fqj_answer_text', $a );
+		$this->assertSame( 'Q [faq_item]', $json['mainEntity'][0]['name'] );
+		$this->assertSame( 'ANSWER', $json['mainEntity'][0]['acceptedAnswer']['text'] );
 	}
 }

@@ -22,19 +22,19 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 
 	public function url_provider() {
 		return array(
-			'trailing slash'      => array( 'https://example.com/about/', 'https://example.com/about' ),
-			'no trailing slash'   => array( 'https://example.com/about', 'https://example.com/about' ),
-			'query string'        => array( 'https://example.com/about/?utm=x', 'https://example.com/about' ),
-			'fragment'            => array( 'https://example.com/about#faq', 'https://example.com/about' ),
-			'query and fragment'  => array( 'https://example.com/a/?b=1#c', 'https://example.com/a' ),
-			'many slashes'        => array( 'https://example.com/a///', 'https://example.com/a' ),
-			'empty string'        => array( '', '' ),
-			'null'                => array( null, '' ),
-			'home with slash'     => array( 'https://example.com/', 'https://example.com' ),
-			'plain permalink p'   => array( 'https://example.com/?p=123', 'https://example.com/?p=123' ),
-			'plain page_id'       => array( 'https://example.com/?page_id=7&utm=x#a', 'https://example.com/?page_id=7' ),
-			'plain p differs'     => array( 'https://example.com/index.php?p=124', 'https://example.com/index.php/?p=124' ),
-			'unicode path'        => array( 'https://example.com/café/', 'https://example.com/café' ),
+			'trailing slash'     => array( 'https://example.com/about/', 'https://example.com/about' ),
+			'no trailing slash'  => array( 'https://example.com/about', 'https://example.com/about' ),
+			'query string'       => array( 'https://example.com/about/?utm=x', 'https://example.com/about' ),
+			'fragment'           => array( 'https://example.com/about#faq', 'https://example.com/about' ),
+			'query and fragment' => array( 'https://example.com/a/?b=1#c', 'https://example.com/a' ),
+			'many slashes'       => array( 'https://example.com/a///', 'https://example.com/a' ),
+			'empty string'       => array( '', '' ),
+			'null'               => array( null, '' ),
+			'home with slash'    => array( 'https://example.com/', 'https://example.com' ),
+			'plain permalink p'  => array( 'https://example.com/?p=123', 'https://example.com/?p=123' ),
+			'plain page_id'      => array( 'https://example.com/?page_id=7&utm=x#a', 'https://example.com/?page_id=7' ),
+			'plain p differs'    => array( 'https://example.com/index.php?p=124', 'https://example.com/index.php/?p=124' ),
+			'unicode path'       => array( 'https://example.com/café/', 'https://example.com/café' ),
 		);
 	}
 
@@ -59,32 +59,69 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 	public function test_data_migration_reindexes_and_purges_once() {
 		$faq = self::factory()->post->create( array( 'post_type' => 'faq_item' ) );
 		update_post_meta( $faq, 'fqj_assoc_data_json', wp_json_encode( array( 'posts' => array( 5 ) ) ) );
-		fqj_insert_mappings( $faq, array( array( 'type' => 'url', 'value' => 'https://example.com/?bad' ) ) );
-		set_transient( 'fqj_faq_json_5', 'stale', 600 );
+		fqj_insert_mappings(
+			$faq,
+			array(
+				array(
+					'type'  => 'url',
+					'value' => 'https://example.com/?bad',
+				),
+			)
+		);
+		$stale_key = fqj_cache_key( 5 );
+		set_transient( $stale_key, 'stale', 600 );
 		delete_option( FQJ_DATA_VERSION_OPTION );
 
 		fqj_run_data_migration();
 
 		$this->assertSame( FQJ_DATA_VERSION, get_option( FQJ_DATA_VERSION_OPTION ) );
-		$this->assertFalse( get_transient( 'fqj_faq_json_5' ) );
+		$this->assertFalse( get_transient( $stale_key ) );
+		$this->assertNotSame( $stale_key, fqj_cache_key( 5 ) );
 		global $wpdb;
-		$rows = $wpdb->get_col( $wpdb->prepare( 'SELECT mapping_type FROM ' . FQJ_DB_TABLE . ' WHERE faq_id = %d', $faq ) );
+		$rows = $wpdb->get_col( $wpdb->prepare( 'SELECT mapping_type FROM ' . fqj_table_name() . ' WHERE faq_id = %d', $faq ) );
 		$this->assertSame( array( 'post' ), $rows );
 
-		set_transient( 'fqj_faq_json_5', 'fresh', 600 );
+		set_transient( fqj_cache_key( 5 ), 'fresh', 600 );
 		fqj_run_data_migration();
-		$this->assertSame( 'fresh', get_transient( 'fqj_faq_json_5' ) );
+		$this->assertSame( 'fresh', get_transient( fqj_cache_key( 5 ) ) );
+	}
+
+	public function test_data_migration_normalizes_legacy_faqsection_option_and_purges() {
+		update_option( FQJ_OPTION_KEY, array( 'output_type' => 'faqsection', 'cache_ttl' => 99 ) );
+		$stale_key = fqj_cache_key( 5 );
+		set_transient( $stale_key, 'stale', 600 );
+		delete_option( FQJ_DATA_VERSION_OPTION );
+
+		fqj_run_data_migration();
+
+		$opts = get_option( FQJ_OPTION_KEY );
+		$this->assertSame( 'faqpage', $opts['output_type'] );
+		$this->assertSame( 99, $opts['cache_ttl'] );
+		$this->assertFalse( get_transient( $stale_key ) );
 	}
 
 	public function test_data_migration_reindexes_trashed_faqs() {
-		$faq = self::factory()->post->create( array( 'post_type' => 'faq_item', 'post_status' => 'trash' ) );
-		fqj_insert_mappings( $faq, array( array( 'type' => 'url', 'value' => 'https://example.com/?bad' ) ) );
+		$faq = self::factory()->post->create(
+			array(
+				'post_type'   => 'faq_item',
+				'post_status' => 'trash',
+			)
+		);
+		fqj_insert_mappings(
+			$faq,
+			array(
+				array(
+					'type'  => 'url',
+					'value' => 'https://example.com/?bad',
+				),
+			)
+		);
 		delete_option( FQJ_DATA_VERSION_OPTION );
 
 		fqj_run_data_migration();
 
 		global $wpdb;
-		$count = $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . FQJ_DB_TABLE . ' WHERE faq_id = %d', $faq ) );
+		$count = $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . fqj_table_name() . ' WHERE faq_id = %d', $faq ) );
 		$this->assertSame( '0', (string) $count );
 	}
 
@@ -367,24 +404,9 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 		$this->assertSame( array( $target ), $this->get_queue() );
 	}
 
-	public function test_enqueue_post_type_mapping_queues_all_posts_in_batches() {
-		update_option(
-			FQJ_OPTION_KEY,
-			array_merge( get_option( FQJ_OPTION_KEY, array() ), array( 'batch_size' => 2 ) )
-		);
-		// Identical dates: paging must still be stable (ordered by ID).
-		$date  = '2024-01-01 00:00:00';
-		$pages = array();
-		for ( $i = 0; $i < 6; $i++ ) {
-			$pages[] = self::factory()->post->create(
-				array(
-					'post_type'   => 'page',
-					'post_status' => 5 === $i ? 'draft' : 'publish',
-					'post_date'   => $date,
-				)
-			);
-		}
-		self::factory()->post->create(); // A 'post' that must not be queued.
+	public function test_enqueue_post_type_and_term_mappings_queue_jobs_without_enumerating_posts() {
+		$term  = self::factory()->category->create();
+		$pages = self::factory()->post->create_many( 3, array( 'post_type' => 'page' ) );
 
 		fqj_enqueue_invalidation_for_mappings(
 			array(
@@ -392,27 +414,10 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 					'type'  => 'post_type',
 					'value' => 'page',
 				),
-			)
-		);
-
-		$this->assertEqualSets( $pages, $this->get_queue() );
-	}
-
-	public function test_enqueue_term_mapping_pages_posts_sharing_a_date() {
-		update_option(
-			FQJ_OPTION_KEY,
-			array_merge( get_option( FQJ_OPTION_KEY, array() ), array( 'batch_size' => 2 ) )
-		);
-		$term   = self::factory()->category->create();
-		$tagged = array();
-		for ( $i = 0; $i < 5; $i++ ) {
-			$pid      = self::factory()->post->create( array( 'post_date' => '2024-01-01 00:00:00' ) );
-			$tagged[] = $pid;
-			wp_set_post_categories( $pid, array( $term ) );
-		}
-
-		fqj_enqueue_invalidation_for_mappings(
-			array(
+				array(
+					'type'  => 'post_type',
+					'value' => 'page',
+				),
 				array(
 					'type'  => 'term',
 					'value' => $term,
@@ -420,36 +425,30 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 			)
 		);
 
-		$this->assertEqualSets( $tagged, $this->get_queue() );
-	}
-
-	public function test_enqueue_term_mapping_queues_tagged_posts() {
-		$term   = self::factory()->category->create();
-		$tagged = self::factory()->post->create_many( 3 );
-		foreach ( $tagged as $pid ) {
-			wp_set_post_categories( $pid, array( $term ) );
-		}
-		self::factory()->post->create();
-
-		fqj_enqueue_invalidation_for_mappings(
+		$this->assertSame( array(), $this->get_queue(), 'No post is enumerated at save time.' );
+		$this->assertSame(
 			array(
 				array(
-					'type'  => 'term',
-					'value' => $term,
+					'item_type'  => 'post_type',
+					'item_value' => 'page',
+					'job_cursor' => '0',
 				),
 				array(
-					'type'  => 'term',
-					'value' => 999999,
+					'item_type'  => 'term',
+					'item_value' => (string) $term,
+					'job_cursor' => '0',
 				),
-			)
+			),
+			$this->get_queue_jobs()
 		);
-
-		$this->assertEqualSets( $tagged, $this->get_queue() );
+		$this->assertCount( 3, $pages );
 	}
 
 	public function test_enqueue_global_mapping_purges_all_faq_transients() {
-		set_transient( 'fqj_faq_json_1', 'x' );
-		set_transient( 'fqj_faq_json_2', 'y' );
+		$key_1 = fqj_cache_key( 1 );
+		$key_2 = fqj_cache_key( 2 );
+		set_transient( $key_1, 'x' );
+		set_transient( $key_2, 'y' );
 		set_transient( 'unrelated_transient', 'z' );
 
 		fqj_enqueue_invalidation_for_mappings(
@@ -461,8 +460,9 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 			)
 		);
 
-		$this->assertFalse( get_transient( 'fqj_faq_json_1' ) );
-		$this->assertFalse( get_transient( 'fqj_faq_json_2' ) );
+		$this->assertFalse( get_transient( $key_1 ) );
+		$this->assertFalse( get_transient( $key_2 ) );
+		$this->assertNotSame( $key_1, fqj_cache_key( 1 ) );
 		$this->assertSame( 'z', get_transient( 'unrelated_transient' ) );
 	}
 

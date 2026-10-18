@@ -12,6 +12,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 // phpcs:disable PSR1.Files.SideEffects
 
 /**
+ * Name of the mapping table for the current site.
+ *
+ * Resolved at call time so it stays correct after switch_to_blog().
+ *
+ * @return string
+ */
+function fqj_table_name() {
+	global $wpdb;
+
+	return $wpdb->prefix . 'fqj_mappings';
+}
+
+/**
  * Create or update the mapping table.
  *
  * The dbDelta() function needs a strict format: no IF NOT EXISTS, two spaces after PRIMARY KEY, KEY (not INDEX),
@@ -20,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 function fqj_create_table() {
 	global $wpdb;
-	$table_name      = FQJ_DB_TABLE;
+	$table_name      = fqj_table_name();
 	$charset_collate = $wpdb->get_charset_collate();
 
 	$sql = "CREATE TABLE {$table_name} (
@@ -34,12 +47,25 @@ function fqj_create_table() {
       KEY idx_mapping_value (mapping_value(191))
     ) {$charset_collate};";
 
+	// Invalidation queue: single posts plus post_type/term jobs that the worker expands from job_cursor.
+	// Values are IDs or post type names (max 20 chars); the unique key stays under the 767-byte InnoDB limit.
+	$queue_table = fqj_queue_table_name();
+	$queue_sql   = "CREATE TABLE {$queue_table} (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      item_type VARCHAR(32) NOT NULL,
+      item_value VARCHAR(64) NOT NULL,
+      job_cursor BIGINT UNSIGNED NOT NULL DEFAULT 0,
+      PRIMARY KEY  (id),
+      UNIQUE KEY uniq_item (item_type,item_value)
+    ) {$charset_collate};";
+
 	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 	dbDelta( $sql );
+	dbDelta( $queue_sql );
 
 	// Record the version only if the table exists, so a failed run retries on the next request.
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-	if ( $wpdb->get_results( "DESCRIBE {$table_name}" ) ) {
+	if ( $wpdb->get_results( "DESCRIBE {$table_name}" ) && $wpdb->get_results( "DESCRIBE {$queue_table}" ) ) {
 		update_option( FQJ_DB_VERSION_OPTION, FQJ_DB_VERSION );
 	}
 }
@@ -52,6 +78,11 @@ function fqj_create_table() {
 function fqj_maybe_upgrade_db() {
 	if ( version_compare( (string) get_option( FQJ_DB_VERSION_OPTION, '0' ), FQJ_DB_VERSION, '<' ) ) {
 		fqj_create_table();
+		// Carry over data from older versions (no-ops on fresh installs).
+		if ( version_compare( (string) get_option( FQJ_DB_VERSION_OPTION, '0' ), FQJ_DB_VERSION, '>=' ) ) {
+			fqj_migrate_legacy_queue();
+			fqj_unautoload_options();
+		}
 	}
 }
 add_action( 'plugins_loaded', 'fqj_maybe_upgrade_db' );
@@ -98,15 +129,21 @@ function fqj_run_data_migration() {
 		return;
 	}
 
+	// FAQSection was never a schema.org type; store the normalized value (the purge below fixes cached output).
+	$opts = get_option( FQJ_OPTION_KEY );
+	if ( is_array( $opts ) && isset( $opts['output_type'] ) && fqj_normalize_output_type( $opts['output_type'] ) !== $opts['output_type'] ) {
+		$opts['output_type'] = fqj_normalize_output_type( $opts['output_type'] );
+		update_option( FQJ_OPTION_KEY, $opts );
+	}
+
 	$batch_size = max( 1, (int) apply_filters( 'fqj_data_migration_batch_size', 25 ) );
 	$cursor     = (int) get_option( FQJ_DATA_MIGRATION_CURSOR_OPTION, 0 );
 	$ids        = fqj_get_faq_ids_after( $cursor, $batch_size );
 
-	// The final purge clears cached output, so skip per-post invalidation unless transients live in an
-	// external object cache, where the purge cannot find them in the options table.
-	$enqueue = wp_using_ext_object_cache();
+	// The final purge bumps the cache generation, which invalidates all cached output on every backend,
+	// so there is no need to enqueue per-post invalidation here.
 	foreach ( $ids as $faq_id ) {
-		fqj_rebuild_index_for_faq( $faq_id, $enqueue );
+		fqj_rebuild_index_for_faq( $faq_id, false );
 		$cursor = $faq_id;
 	}
 
@@ -142,7 +179,7 @@ add_action( 'plugins_loaded', 'fqj_maybe_schedule_data_migration', 20 );
  */
 function fqj_insert_mappings( $faq_id, $mappings ) {
 	global $wpdb;
-	$table = FQJ_DB_TABLE;
+	$table = fqj_table_name();
 	foreach ( $mappings as $m ) {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 		$wpdb->insert(
@@ -164,9 +201,32 @@ function fqj_insert_mappings( $faq_id, $mappings ) {
  */
 function fqj_delete_mappings_for_faq( $faq_id ) {
 	global $wpdb;
-	$table = FQJ_DB_TABLE;
+	$table = fqj_table_name();
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 	$wpdb->delete( $table, array( 'faq_id' => intval( $faq_id ) ), array( '%d' ) );
+}
+
+/**
+ * Read the stored mapping rows of a FAQ in the same type/value shape that fqj_insert_mappings() takes.
+ *
+ * @param int $faq_id The FAQ ID.
+ * @return array
+ */
+function fqj_get_mappings_for_faq( $faq_id ) {
+	global $wpdb;
+	$table = fqj_table_name();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	$rows = $wpdb->get_results( $wpdb->prepare( "SELECT mapping_type, mapping_value FROM {$table} WHERE faq_id = %d", intval( $faq_id ) ), ARRAY_A );
+
+	$mappings = array();
+	foreach ( (array) $rows as $row ) {
+		$mappings[] = array(
+			'type'  => $row['mapping_type'],
+			'value' => maybe_unserialize( $row['mapping_value'] ),
+		);
+	}
+
+	return $mappings;
 }
 
 /**
@@ -220,6 +280,9 @@ function fqj_normalize_url( $url ) {
  * @param bool $enqueue Whether to enqueue affected posts for invalidation.
  */
 function fqj_rebuild_index_for_faq( $faq_id, $enqueue = true ) {
+	// Remember the old mappings: posts that lost an association need invalidating too.
+	$old_mappings = $enqueue ? fqj_get_mappings_for_faq( $faq_id ) : array();
+
 	// delete old.
 	fqj_delete_mappings_for_faq( $faq_id );
 
@@ -288,13 +351,14 @@ function fqj_rebuild_index_for_faq( $faq_id, $enqueue = true ) {
 
 	// Enqueue affected posts for background invalidation.
 	if ( $enqueue ) {
-		fqj_enqueue_invalidation_for_mappings( $mappings );
+		fqj_enqueue_invalidation_for_mappings( array_merge( $old_mappings, $mappings ) );
 	}
 }
 
 /**
- * Resolve mappings to post IDs and enqueue them for invalidation using the background queue.
- * This function does not synchronously delete transients; it pushes affected IDs to the queue.
+ * Enqueue the posts affected by mappings for invalidation using the background queue.
+ * This function does not synchronously delete transients or enumerate posts; it pushes post IDs and
+ * post_type/term jobs to the queue.
  *
  * @param array $mappings The mappings array.
  */
@@ -331,86 +395,124 @@ function fqj_enqueue_invalidation_for_mappings( $mappings ) {
 		}
 	}
 
-	// Enqueue direct post IDs.
-	if ( ! empty( $post_ids_to_enqueue ) ) {
-		fqj_queue_add_posts( $post_ids_to_enqueue );
-	}
-
-	// Enqueue posts of post types (in batches, gather ids).
-	if ( ! empty( $post_types_to_process ) ) {
-		$opts       = get_option( FQJ_OPTION_KEY );
-		$batch_size = isset( $opts['batch_size'] ) ? intval( $opts['batch_size'] ) : 500;
-
-		foreach ( $post_types_to_process as $pt ) {
-			$paged = 1;
-			while ( true ) {
-				$args = array(
-					'post_type'      => $pt,
-					'post_status'    => 'any',
-					'posts_per_page' => $batch_size,
-					'paged'          => $paged,
-					'orderby'        => 'ID',
-					'order'          => 'ASC',
-					'fields'         => 'ids',
-				);
-				$q    = new WP_Query( $args );
-				if ( ! $q->have_posts() ) {
-					break;
-				}
-				fqj_queue_add_posts( $q->posts );
-				wp_reset_postdata();
-				if ( count( $q->posts ) < $batch_size ) {
-					break;
-				}
-				++$paged;
-			}
-		}
-	}
-
-	// Enqueue posts tagged with terms.
-	if ( ! empty( $terms_to_process ) ) {
-		$opts       = get_option( FQJ_OPTION_KEY );
-		$batch_size = isset( $opts['batch_size'] ) ? intval( $opts['batch_size'] ) : 500;
-
-		foreach ( $terms_to_process as $term_id ) {
-			$term = get_term( $term_id );
-			if ( ! $term || is_wp_error( $term ) ) {
-				continue;
-			}
-
-			$paged = 1;
-			while ( true ) {
-				$args = array(
-					'post_type'      => 'any',
-					'posts_per_page' => $batch_size,
-					'paged'          => $paged,
-					'orderby'        => 'ID',
-					'order'          => 'ASC',
-					'fields'         => 'ids',
-					'tax_query'      => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query
-						array(
-							'taxonomy' => $term->taxonomy,
-							'terms'    => $term_id,
-							'field'    => 'term_id',
-						),
-					),
-				);
-				$q    = new WP_Query( $args );
-				if ( ! $q->have_posts() ) {
-					break;
-				}
-				fqj_queue_add_posts( $q->posts );
-				wp_reset_postdata();
-				if ( count( $q->posts ) < $batch_size ) {
-					break;
-				}
-				++$paged;
-			}
-		}
-	}
+	// Direct post IDs go straight in; post type and term mappings become jobs that the queue worker
+	// expands incrementally, so saving never enumerates every matching post.
+	fqj_queue_add_posts( $post_ids_to_enqueue );
+	fqj_queue_add_items( 'post_type', $post_types_to_process );
+	fqj_queue_add_items( 'term', $terms_to_process );
 
 	// For global, do a full purge (we can't reasonably enqueue all posts efficiently here).
 	if ( $must_purge_all ) {
 		fqj_purge_all_faq_transients();
 	}
 }
+
+/**
+ * Enqueue invalidation for the current mapping rows of a FAQ.
+ *
+ * @param int $faq_id The FAQ ID.
+ */
+function fqj_invalidate_faq_mappings( $faq_id ) {
+	fqj_enqueue_invalidation_for_mappings( fqj_get_mappings_for_faq( $faq_id ) );
+}
+
+/**
+ * Invalidate when a FAQ changes status (trash, untrash, unpublish, publish).
+ *
+ * @param string  $new_status New status.
+ * @param string  $old_status Old status.
+ * @param WP_Post $post       Post object.
+ */
+function fqj_on_faq_transition_status( $new_status, $old_status, $post ) {
+	if ( 'faq_item' !== $post->post_type || $new_status === $old_status ) {
+		return;
+	}
+	fqj_invalidate_faq_mappings( $post->ID );
+}
+add_action( 'transition_post_status', 'fqj_on_faq_transition_status', 10, 3 );
+
+/**
+ * Invalidate when a FAQ's question or answer changes outside the meta box (Quick Edit, REST, code).
+ *
+ * @param int     $post_id     Post ID.
+ * @param WP_Post $post_after  Post after the update.
+ * @param WP_Post $post_before Post before the update.
+ */
+function fqj_on_faq_updated( $post_id, $post_after, $post_before ) {
+	if ( 'faq_item' !== $post_after->post_type ) {
+		return;
+	}
+	if ( $post_after->post_title === $post_before->post_title && $post_after->post_content === $post_before->post_content ) {
+		return;
+	}
+	// The meta box save rebuilds the index and invalidates the union itself.
+	if ( isset( $_POST['fqj_meta_nonce'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		return;
+	}
+	fqj_invalidate_faq_mappings( $post_id );
+}
+add_action( 'post_updated', 'fqj_on_faq_updated', 10, 3 );
+
+/**
+ * Invalidate and drop mapping rows when a FAQ is permanently deleted.
+ *
+ * @param int     $post_id Post ID.
+ * @param WP_Post $post    Post object.
+ */
+function fqj_on_faq_before_delete( $post_id, $post = null ) {
+	$post = $post ? $post : get_post( $post_id );
+	if ( ! $post || 'faq_item' !== $post->post_type ) {
+		return;
+	}
+	fqj_invalidate_faq_mappings( $post_id );
+	fqj_delete_mappings_for_faq( $post_id );
+}
+add_action( 'before_delete_post', 'fqj_on_faq_before_delete', 10, 2 );
+
+/**
+ * Drop a post's cached output when its terms change.
+ *
+ * @param int    $object_id  Object ID.
+ * @param array  $terms      Terms passed.
+ * @param array  $tt_ids     New term taxonomy IDs.
+ * @param string $taxonomy   Taxonomy.
+ * @param bool   $append     Whether terms were appended.
+ * @param array  $old_tt_ids Previous term taxonomy IDs.
+ */
+function fqj_on_object_terms_set( $object_id, $terms, $tt_ids, $taxonomy, $append, $old_tt_ids ) {
+	$type = get_post_type( $object_id );
+	if ( ! $type || 'faq_item' === $type || wp_is_post_revision( $object_id ) ) {
+		return;
+	}
+	if ( ! $append ) {
+		$new = array_map( 'intval', (array) $tt_ids );
+		$old = array_map( 'intval', (array) $old_tt_ids );
+		sort( $new );
+		sort( $old );
+		if ( $new === $old ) {
+			return;
+		}
+	}
+	delete_transient( fqj_cache_key( $object_id ) );
+}
+add_action( 'set_object_terms', 'fqj_on_object_terms_set', 10, 6 );
+
+/**
+ * Drop a post's cached output when its permalink or visibility changes.
+ *
+ * @param int     $post_id     Post ID.
+ * @param WP_Post $post_after  Post after the update.
+ * @param WP_Post $post_before Post before the update.
+ */
+function fqj_on_post_permalink_change( $post_id, $post_after, $post_before ) {
+	if ( 'faq_item' === $post_after->post_type || wp_is_post_revision( $post_id ) ) {
+		return;
+	}
+	if ( $post_after->post_name === $post_before->post_name
+		&& (int) $post_after->post_parent === (int) $post_before->post_parent
+		&& $post_after->post_status === $post_before->post_status ) {
+		return;
+	}
+	delete_transient( fqj_cache_key( $post_id ) );
+}
+add_action( 'post_updated', 'fqj_on_post_permalink_change', 10, 3 );

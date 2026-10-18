@@ -12,7 +12,7 @@ class Test_FQJ_Plugin extends FQJ_TestCase {
 
 	public function test_constants_are_defined() {
 		global $wpdb;
-		$this->assertSame( $wpdb->prefix . 'fqj_mappings', FQJ_DB_TABLE );
+		$this->assertSame( $wpdb->prefix . 'fqj_mappings', fqj_table_name() );
 		$this->assertSame( 'fqj_settings', FQJ_OPTION_KEY );
 		$this->assertStringEndsWith( '/', FQJ_PLUGIN_DIR );
 		$this->assertFileExists( FQJ_PLUGIN_DIR . 'faq-jsonld.php' );
@@ -33,7 +33,7 @@ class Test_FQJ_Plugin extends FQJ_TestCase {
 
 	public function test_activation_creates_table() {
 		global $wpdb;
-		$table = FQJ_DB_TABLE;
+		$table = fqj_table_name();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		$this->assertSame( $table, $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) );
 
@@ -49,8 +49,27 @@ class Test_FQJ_Plugin extends FQJ_TestCase {
 		$opts = get_option( FQJ_OPTION_KEY );
 		$this->assertSame( 12 * HOUR_IN_SECONDS, $opts['cache_ttl'] );
 		$this->assertSame( 500, $opts['batch_size'] );
-		$this->assertSame( 'faqsection', $opts['output_type'] );
-		$this->assertSame( 'fqj_five_minutes', $opts['queue_cron_interval'] );
+		$this->assertSame( 'faqpage', $opts['output_type'] );
+		$this->assertArrayNotHasKey( 'queue_cron_interval', $opts );
+	}
+
+	public function test_version_constant_matches_plugin_header() {
+		$data = get_file_data( FQJ_PLUGIN_DIR . 'faq-jsonld.php', array( 'Version' => 'Version', 'TextDomain' => 'Text Domain' ) );
+		$this->assertSame( $data['Version'], FQJ_VERSION );
+		$this->assertSame( 'faq-jsonld', $data['TextDomain'] );
+	}
+
+	public function test_activation_migrates_legacy_transient_queue() {
+		// Reactivation after an upgrade: the schema is already current, so plugins_loaded skipped the migration.
+		// The legacy queue comes from a filter, not the database: activation's dbDelta can issue DDL, which
+		// commits the test transaction and would leak a stored transient into later tests.
+		$legacy = function () {
+			return array( 5, 6 );
+		};
+		add_filter( 'pre_transient_fqj_invalidate_queue', $legacy );
+		fqj_activate();
+		remove_filter( 'pre_transient_fqj_invalidate_queue', $legacy );
+		$this->assertSame( array( 5, 6 ), $this->get_queue() );
 	}
 
 	public function test_activation_keeps_existing_options() {
@@ -85,6 +104,57 @@ class Test_FQJ_Plugin extends FQJ_TestCase {
 		fqj_activate();
 		fqj_deactivate();
 		$this->assertFalse( wp_next_scheduled( 'fqj_process_invalidation_queue' ) );
+	}
+
+	public function test_deactivation_clears_duplicate_and_migration_events() {
+		wp_schedule_event( time() + 60, 'fqj_five_minutes', 'fqj_process_invalidation_queue' );
+		wp_schedule_event( time() + 120, 'hourly', 'fqj_process_invalidation_queue' );
+		wp_schedule_single_event( time() + 10, 'fqj_data_migration' );
+
+		fqj_deactivate();
+
+		$this->assertFalse( wp_next_scheduled( 'fqj_process_invalidation_queue' ) );
+		$this->assertFalse( wp_next_scheduled( 'fqj_data_migration' ) );
+	}
+
+	public function test_network_wide_flag_is_harmless_on_single_site() {
+		if ( is_multisite() ) {
+			$this->markTestSkipped( 'Single-site behaviour.' );
+		}
+		wp_clear_scheduled_hook( 'fqj_process_invalidation_queue' );
+		fqj_activate( true );
+		$this->assertNotFalse( wp_next_scheduled( 'fqj_process_invalidation_queue' ) );
+		fqj_deactivate( true );
+		$this->assertFalse( wp_next_scheduled( 'fqj_process_invalidation_queue' ) );
+	}
+
+	public function test_for_each_site_runs_once_on_single_site() {
+		if ( is_multisite() ) {
+			$this->markTestSkipped( 'Single-site behaviour.' );
+		}
+		$calls = 0;
+		fqj_for_each_site(
+			function () use ( &$calls ) {
+				++$calls;
+			}
+		);
+		$this->assertSame( 1, $calls );
+	}
+
+	public function test_new_site_is_ignored_when_not_network_active() {
+		$this->assertNotFalse( has_action( 'wp_initialize_site', 'fqj_on_initialize_site' ) );
+		wp_clear_scheduled_hook( 'fqj_process_invalidation_queue' );
+		fqj_on_initialize_site( (object) array( 'blog_id' => get_current_blog_id() ) );
+		$this->assertFalse( wp_next_scheduled( 'fqj_process_invalidation_queue' ) );
+	}
+
+	public function test_table_name_follows_current_blog_prefix() {
+		global $wpdb;
+		$original     = $wpdb->prefix;
+		$wpdb->prefix = 'other_'; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+		$name         = fqj_table_name();
+		$wpdb->prefix = $original; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+		$this->assertSame( 'other_fqj_mappings', $name );
 	}
 
 	public function test_deactivation_without_scheduled_event_is_safe() {

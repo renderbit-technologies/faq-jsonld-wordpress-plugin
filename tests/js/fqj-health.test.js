@@ -50,7 +50,12 @@ describe("process queue now", () => {
     const { post } = await boot({
       response: {
         success: true,
-        data: { processed: 5, queue_len: 2, last_run: LAST_RUN },
+        data: {
+          processed: 5,
+          queue_len: 2,
+          last_run: LAST_RUN,
+          last_run_human: "2023-11-14 22:13:20 (1 min ago)",
+        },
       },
     });
 
@@ -63,9 +68,7 @@ describe("process queue now", () => {
       expect.any(Function)
     );
     expect(text("fqj-queue-count")).toBe("2");
-    expect(text("fqj-last-run")).toBe(
-      new Date(LAST_RUN * 1000).toLocaleString()
-    );
+    expect(text("fqj-last-run")).toBe("2023-11-14 22:13:20 (1 min ago)");
     expect(text("fqj-action-status")).toBe("Processed 5 items.");
   });
 
@@ -73,7 +76,7 @@ describe("process queue now", () => {
     await boot({
       response: {
         success: true,
-        data: { processed: 0, queue_len: 0, last_run: 0 },
+        data: { processed: 0, queue_len: 0, last_run: 0, last_run_human: "" },
       },
     });
     click("fqj-process-now");
@@ -158,5 +161,27 @@ describe.each([
     await boot({ fail: true });
     click(button);
     expect(text("fqj-action-status")).toBe("Request failed.");
+  });
+});
+
+describe("localized strings", () => {
+  test("uses fqjHealth.i18n when provided", async () => {
+    renderPage();
+    window.fqjHealth = {
+      ajax_url: "/x",
+      nonce: "n",
+      i18n: { processing: "Traitement…", processed: "%d éléments traités." },
+    };
+    const post = fakeRequest({
+      response: {
+        success: true,
+        data: { processed: 3, queue_len: 0, last_run_human: "" },
+      },
+    });
+    await loadScript(loadHealth, (jq) => {
+      jq.post = post;
+    });
+    click("fqj-process-now");
+    expect(text("fqj-action-status")).toBe("3 éléments traités.");
   });
 });

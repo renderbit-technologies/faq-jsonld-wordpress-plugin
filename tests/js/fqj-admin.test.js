@@ -190,7 +190,7 @@ describe("initial data and switching", () => {
     expect(container().innerHTML).toBe("");
   });
 
-  test("changing the type re-renders without the saved data", async () => {
+  test("changing the type renders the new type and restores the old one", async () => {
     const { $, select2 } = await boot("urls", { urls: ["https://a.test/"] });
 
     $("#fqj_assoc_type").val("posts").trigger("change");
@@ -199,7 +199,105 @@ describe("initial data and switching", () => {
     expect(select2).toHaveBeenCalledTimes(1);
 
     $("#fqj_assoc_type").val("urls").trigger("change");
-    expect(document.getElementById("fqj_assoc_urls").value).toBe("");
+    expect(document.getElementById("fqj_assoc_urls").value).toBe("https://a.test/");
     expect(container().querySelectorAll("textarea")).toHaveLength(1);
+  });
+
+  test("switching away and back restores in-progress edits per type", async () => {
+    const { $ } = await boot("urls", { urls: ["https://a.test/"] });
+
+    // Edit the initial type, then switch away and back.
+    $("#fqj_assoc_urls").val("https://a.test/\nhttps://edited.test/");
+    $("#fqj_assoc_type").val("posts").trigger("change");
+
+    // Start a selection on the new type.
+    $("#fqj_assoc_posts_select").append(new Option("Five", "5", true, true));
+    $("#fqj_assoc_type").val("urls").trigger("change");
+    expect(document.getElementById("fqj_assoc_urls").value).toBe(
+      "https://a.test/\nhttps://edited.test/"
+    );
+
+    $("#fqj_assoc_type").val("posts").trigger("change");
+    const options = Array.from(
+      document.querySelectorAll("#fqj_assoc_posts_select option")
+    );
+    expect(options.map((o) => [o.value, o.text, o.selected])).toEqual([
+      ["5", "Five", true],
+    ]);
+  });
+
+  test("the saved data only belongs to the initially selected type", async () => {
+    const { $ } = await boot("urls", { urls: ["https://a.test/"] });
+    $("#fqj_assoc_type").val("tax_terms").trigger("change");
+    expect(document.querySelectorAll("#fqj_assoc_terms_select option")).toHaveLength(0);
+  });
+
+  test("keeps saved post types while their request is pending and ignores stale responses", async () => {
+    renderMetaBox("post_types", { post_types: ["page"] });
+    window.fqjAdmin = { ajax_url: "/wp-admin/admin-ajax.php", nonce: "abc123" };
+    const pending = [];
+    const get = jest.fn((url, data, success) => {
+      pending.push(success);
+      return {
+        fail() {
+          return this;
+        },
+      };
+    });
+    const $ = await loadScript(loadAdmin, (jq) => {
+      jq.fn.select2 = jest.fn(function () {
+        return this;
+      });
+      jq.get = get;
+    });
+    const types = [
+      { name: "post", label: "Post" },
+      { name: "page", label: "Page" },
+    ];
+
+    // Switch away and back before the first request answers.
+    $("#fqj_assoc_type").val("global").trigger("change");
+    $("#fqj_assoc_type").val("post_types").trigger("change");
+    pending[0](types);
+    pending[1](types);
+
+    const boxes = Array.from(
+      document.querySelectorAll('input[name="fqj_assoc_post_types[]"]')
+    );
+    expect(boxes.map((b) => [b.value, b.checked])).toEqual([
+      ["post", false],
+      ["page", true],
+    ]);
+  });
+
+  test("restores checked post types", async () => {
+    const { $ } = await boot("post_types", { post_types: ["page"] }, [
+      { name: "post", label: "Post" },
+      { name: "page", label: "Page" },
+    ]);
+    $('input[value="post"]').prop("checked", true);
+    $("#fqj_assoc_type").val("global").trigger("change");
+    $("#fqj_assoc_type").val("post_types").trigger("change");
+    const boxes = Array.from(
+      document.querySelectorAll('input[name="fqj_assoc_post_types[]"]')
+    );
+    expect(boxes.map((b) => [b.value, b.checked])).toEqual([
+      ["post", true],
+      ["page", true],
+    ]);
+  });
+
+  test("uses localized strings when provided", async () => {
+    renderMetaBox("global", {});
+    window.fqjAdmin = {
+      ajax_url: "/x",
+      nonce: "n",
+      i18n: { globalHelp: "Sitewide FAQ" },
+    };
+    await loadScript(loadAdmin, (jq) => {
+      jq.fn.select2 = jest.fn();
+      jq.get = jest.fn();
+    });
+    expect(container().textContent).toContain("Sitewide FAQ");
   });
 });

@@ -1,7 +1,30 @@
 jQuery(document).ready(function ($) {
+  // Strings come from wp_localize_script (fqjHealth.i18n); English is the fallback.
+  var i18n = $.extend(
+    {
+      processing: "Processing…",
+      processed: "Processed %d items.",
+      error: "Error: %s",
+      unknown: "unknown",
+      requestFailed: "Request failed. See console.",
+      requestFailedShort: "Request failed.",
+      purging: "Purging…",
+      purged: "Purged transients.",
+      purgeError: "Error purging.",
+      purgeConfirm:
+        "Purge all FAQ transients? This will force pages to rebuild the JSON-LD on next view.",
+      clearing: "Clearing…",
+      cleared: "Cleared log. Reload to refresh the table.",
+      clearError: "Error clearing log.",
+      clearConfirm: "Clear invalidation log? This will remove recent run history.",
+      notAvailable: "n/a"
+    },
+    (window.fqjHealth && window.fqjHealth.i18n) || {}
+  );
+
   $("#fqj-process-now").on("click", function (e) {
     e.preventDefault();
-    var $status = $("#fqj-action-status").text("Processing…");
+    var $status = $("#fqj-action-status").text(i18n.processing);
     $.post(
       fqjHealth.ajax_url,
       {
@@ -11,20 +34,19 @@ jQuery(document).ready(function ($) {
       function (resp) {
         if (resp.success) {
           $("#fqj-queue-count").text(resp.data.queue_len);
-          var lastrun = resp.data.last_run
-            ? new Date(resp.data.last_run * 1000)
-            : null;
-          $("#fqj-last-run").text(lastrun ? lastrun.toLocaleString() : "n/a");
-          $status.text("Processed " + resp.data.processed + " items.");
+          $("#fqj-last-run").text(resp.data.last_run_human || i18n.notAvailable);
+          $status.text(i18n.processed.replace("%d", resp.data.processed));
         } else {
           $status.text(
-            "Error: " +
-              (resp.data && resp.data.message ? resp.data.message : "unknown")
+            i18n.error.replace(
+              "%s",
+              resp.data && resp.data.message ? resp.data.message : i18n.unknown
+            )
           );
         }
       }
     ).fail(function (xhr) {
-      $status.text("Request failed. See console.");
+      $status.text(i18n.requestFailed);
       console.error(xhr);
     });
   });
@@ -32,12 +54,10 @@ jQuery(document).ready(function ($) {
   $("#fqj-purge-transients").on("click", function (e) {
     e.preventDefault();
     if (
-      !confirm(
-        "Purge all FAQ transients? This will force pages to rebuild the JSON-LD on next view."
-      )
+      !confirm(i18n.purgeConfirm)
     )
       return;
-    var $status = $("#fqj-action-status").text("Purging…");
+    var $status = $("#fqj-action-status").text(i18n.purging);
     $.post(
       fqjHealth.ajax_url,
       {
@@ -46,23 +66,23 @@ jQuery(document).ready(function ($) {
       },
       function (resp) {
         if (resp.success) {
-          $status.text("Purged transients.");
+          $status.text(i18n.purged);
         } else {
-          $status.text("Error purging.");
+          $status.text(i18n.purgeError);
         }
       }
     ).fail(function () {
-      $status.text("Request failed.");
+      $status.text(i18n.requestFailedShort);
     });
   });
 
   $("#fqj-clear-log").on("click", function (e) {
     e.preventDefault();
     if (
-      !confirm("Clear invalidation log? This will remove recent run history.")
+      !confirm(i18n.clearConfirm)
     )
       return;
-    var $status = $("#fqj-action-status").text("Clearing…");
+    var $status = $("#fqj-action-status").text(i18n.clearing);
     $.post(
       fqjHealth.ajax_url,
       {
@@ -71,13 +91,13 @@ jQuery(document).ready(function ($) {
       },
       function (resp) {
         if (resp.success) {
-          $status.text("Cleared log. Reload to refresh the table.");
+          $status.text(i18n.cleared);
         } else {
-          $status.text("Error clearing log.");
+          $status.text(i18n.clearError);
         }
       }
     ).fail(function () {
-      $status.text("Request failed.");
+      $status.text(i18n.requestFailedShort);
     });
   });
 });

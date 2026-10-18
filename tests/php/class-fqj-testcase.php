@@ -18,7 +18,6 @@ abstract class FQJ_TestCase extends WP_UnitTestCase {
 	public function set_up() {
 		parent::set_up();
 		$this->set_permalink_structure( '/%postname%/' );
-		delete_transient( 'fqj_invalidate_queue' );
 	}
 
 	/**
@@ -64,7 +63,7 @@ abstract class FQJ_TestCase extends WP_UnitTestCase {
 	 */
 	protected function get_mappings( $faq_id ) {
 		global $wpdb;
-		$table = FQJ_DB_TABLE;
+		$table = fqj_table_name();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		return $wpdb->get_results( $wpdb->prepare( "SELECT mapping_type, mapping_value FROM {$table} WHERE faq_id = %d ORDER BY id", $faq_id ), ARRAY_A );
 	}
@@ -75,19 +74,32 @@ abstract class FQJ_TestCase extends WP_UnitTestCase {
 	 * @return array
 	 */
 	protected function get_queue() {
-		$queue = get_transient( 'fqj_invalidate_queue' );
-
-		return is_array( $queue ) ? $queue : array();
+		global $wpdb;
+		$table = fqj_queue_table_name();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		return array_map( 'intval', $wpdb->get_col( "SELECT item_value FROM {$table} WHERE item_type = 'post' ORDER BY id" ) );
 	}
 
 	/**
-	 * Run the frontend printer for a post and return what it echoed.
+	 * Queued post_type/term jobs as type, value and cursor.
+	 *
+	 * @return array
+	 */
+	protected function get_queue_jobs() {
+		global $wpdb;
+		$table = fqj_queue_table_name();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		return $wpdb->get_results( "SELECT item_type, item_value, job_cursor FROM {$table} WHERE item_type <> 'post' ORDER BY id", ARRAY_A );
+	}
+
+	/**
+	 * Run the frontend printer on the real singular request for a post and return what it echoed.
 	 *
 	 * @param int $post_id Post ID.
 	 * @return string
 	 */
 	protected function render_head_for( $post_id ) {
-		$GLOBALS['post'] = get_post( $post_id ); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+		$this->go_to( get_permalink( $post_id ) );
 		ob_start();
 		fqj_maybe_print_faq_jsonld();
 

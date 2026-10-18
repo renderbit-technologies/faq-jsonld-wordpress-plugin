@@ -13,4 +13,11 @@
 	<arg value="sp"/>
 
 	<rule ref="WordPress"/>
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="faq-jsonld"/>
+			</property>
+		</properties>
+	</rule>
 </ruleset>

@@ -22,26 +22,14 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	class FqjCli {
 
 		/**
-		 * Purge all FAQ transients.
+		 * Purge all cached FAQ output.
 		 *
 		 * @param array $args       Positional arguments.
 		 * @param array $assoc_args Associative arguments.
 		 */
 		public function purge_transients( $args, $assoc_args ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter
-			global $wpdb;
-			WP_CLI::log( 'Searching transients...' );
-			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-			$rows  = $wpdb->get_col( $wpdb->prepare( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s", '%_transient_fqj_faq_json_%' ) );
-			$count = 0;
-			if ( $rows ) {
-				foreach ( $rows as $opt ) {
-					$key = preg_replace( '/^_transient_|^_transient_timeout_/', '', $opt );
-					if ( delete_transient( $key ) ) {
-						++$count;
-					}
-				}
-			}
-			WP_CLI::success( "Purged {$count} faq transients." );
+			$generation = fqj_purge_all_faq_transients();
+			WP_CLI::success( "Purged FAQ cache (generation {$generation})." );
 		}
 
 		/**

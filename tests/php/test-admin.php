@@ -106,7 +106,13 @@ class Test_FQJ_Admin extends FQJ_TestCase {
 
 	public function test_clean_save_clears_stale_rejected_url_notice() {
 		$faq = $this->create_faq();
-		$this->submit( $faq, array( 'fqj_assoc_type' => 'urls', 'fqj_assoc_urls' => 'javascript:alert(1)' ) );
+		$this->submit(
+			$faq,
+			array(
+				'fqj_assoc_type' => 'urls',
+				'fqj_assoc_urls' => 'javascript:alert(1)',
+			)
+		);
 		$this->submit( $faq, array( 'fqj_assoc_type' => 'global' ) );
 
 		$_GET['post'] = $faq;
@@ -190,11 +196,16 @@ class Test_FQJ_Admin extends FQJ_TestCase {
 		$this->assertSame( array( 'urls' => array() ), $this->payload( $faq ) );
 	}
 
-	public function test_save_unknown_type_stores_empty_payload() {
+	public function test_save_unknown_type_leaves_existing_data_untouched() {
 		$faq = $this->create_faq( 'Q', 'A', array( 'global' => true ) );
+		$before_meta     = get_post_meta( $faq, 'fqj_assoc_data_json', true );
+		$before_mappings = $this->get_mappings( $faq );
+		$this->assertNotEmpty( $before_mappings );
+
 		$this->submit( $faq, array( 'fqj_assoc_type' => 'bogus' ) );
-		$this->assertSame( '[]', get_post_meta( $faq, 'fqj_assoc_data_json', true ) );
-		$this->assertSame( array(), $this->get_mappings( $faq ) );
+
+		$this->assertSame( $before_meta, get_post_meta( $faq, 'fqj_assoc_data_json', true ) );
+		$this->assertSame( $before_mappings, $this->get_mappings( $faq ) );
 	}
 
 	public function test_save_switching_type_drops_old_mappings() {
@@ -378,9 +389,68 @@ class Test_FQJ_Admin extends FQJ_TestCase {
 		$this->assertTrue( wp_script_is( 'fqj-select2-js', 'enqueued' ) );
 		$this->assertTrue( wp_style_is( 'fqj-select2-css', 'enqueued' ) );
 
+		$this->assertStringStartsWith( FQJ_PLUGIN_URL, wp_scripts()->registered['fqj-select2-js']->src );
+		$this->assertStringStartsWith( FQJ_PLUGIN_URL, wp_styles()->registered['fqj-select2-css']->src );
+		$this->assertStringNotContainsString( 'cdnjs', wp_scripts()->registered['fqj-select2-js']->src );
+
 		$data = wp_scripts()->get_data( 'fqj-admin-js', 'data' );
 		$this->assertStringContainsString( 'var fqjAdmin', $data );
 		$this->assertStringContainsString( 'admin-ajax.php', $data );
+	}
+
+	public function test_admin_assets_reuse_registered_select2() {
+		// Earlier tests leave these handles registered with the bundled copy as a dependency.
+		foreach ( array( 'fqj-admin-js', 'fqj-select2-js' ) as $handle ) {
+			wp_dequeue_script( $handle );
+			wp_deregister_script( $handle );
+		}
+		wp_register_script( 'select2', 'https://example.org/select2.js', array( 'jquery' ), '4', true );
+		$GLOBALS['post'] = get_post( $this->create_faq() ); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+		fqj_admin_assets( 'post.php' );
+		wp_deregister_script( 'select2' );
+
+		$this->assertFalse( wp_script_is( 'fqj-select2-js', 'enqueued' ) );
+		$this->assertContains( 'select2', wp_scripts()->registered['fqj-admin-js']->deps );
+	}
+
+	/**
+	 * Reset the admin and Select2 handles left behind by earlier tests.
+	 */
+	private function reset_select2_handles() {
+		foreach ( array( 'fqj-admin-js', 'fqj-select2-js' ) as $handle ) {
+			wp_dequeue_script( $handle );
+			wp_deregister_script( $handle );
+		}
+		wp_dequeue_style( 'fqj-select2-css' );
+		wp_deregister_style( 'fqj-select2-css' );
+	}
+
+	public function test_admin_assets_use_select2_style_with_selectwoo_script() {
+		$this->reset_select2_handles();
+		// WooCommerce's pairing: the script is selectWoo, the stylesheet is select2.
+		wp_register_script( 'selectWoo', 'https://example.org/selectWoo.js', array( 'jquery' ), '1', true );
+		wp_register_style( 'select2', 'https://example.org/select2.css', array(), '4' );
+		$GLOBALS['post'] = get_post( $this->create_faq() ); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+		fqj_admin_assets( 'post.php' );
+
+		$this->assertTrue( wp_style_is( 'select2', 'enqueued' ) );
+		$this->assertFalse( wp_style_is( 'fqj-select2-css', 'enqueued' ) );
+		wp_dequeue_style( 'select2' );
+		wp_deregister_style( 'select2' );
+		wp_dequeue_script( 'selectWoo' );
+		wp_deregister_script( 'selectWoo' );
+	}
+
+	public function test_admin_assets_fall_back_to_bundled_css_for_reused_script() {
+		$this->reset_select2_handles();
+		wp_register_script( 'selectWoo', 'https://example.org/selectWoo.js', array( 'jquery' ), '1', true );
+		$GLOBALS['post'] = get_post( $this->create_faq() ); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+		fqj_admin_assets( 'post.php' );
+
+		$this->assertTrue( wp_style_is( 'fqj-select2-css', 'enqueued' ) );
+		$this->assertFalse( wp_script_is( 'fqj-select2-js', 'enqueued' ) );
+		wp_dequeue_script( 'selectWoo' );
+		wp_deregister_script( 'selectWoo' );
 	}
 
 	public function test_admin_assets_skip_other_screens_and_types() {
