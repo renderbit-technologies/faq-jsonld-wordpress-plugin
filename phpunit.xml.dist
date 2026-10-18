@@ -16,6 +16,11 @@
 			<directory prefix="test-" suffix=".php">tests/php</directory>
 		</testsuite>
 	</testsuites>
+	<groups>
+		<exclude>
+			<group>ms-required</group>
+		</exclude>
+	</groups>
 	<coverage includeUncoveredFiles="true">
 		<include>
 			<file>faq-jsonld.php</file>

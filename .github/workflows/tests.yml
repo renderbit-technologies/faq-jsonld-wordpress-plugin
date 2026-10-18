@@ -52,7 +52,7 @@ jobs:
         run: vendor/bin/phpcs -q --report=checkstyle | cs2pr
 
   phpunit:
-    name: PHPUnit (PHP ${{ matrix.php }}, WP ${{ matrix.wp }})
+    name: PHPUnit (PHP ${{ matrix.php }}, WP ${{ matrix.wp }}${{ matrix.multisite && ', multisite' || '' }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -67,6 +67,9 @@ jobs:
           - php: "8.3"
             wp: locked
             coverage: true
+          - php: "8.3"
+            wp: locked
+            multisite: true
     services:
       mysql:
         image: mysql:8.0
@@ -105,7 +108,7 @@ jobs:
 
       - name: Run PHPUnit
         if: ${{ !matrix.coverage }}
-        run: vendor/bin/phpunit
+        run: vendor/bin/phpunit ${{ matrix.multisite && '-c phpunit-multisite.xml.dist' || '' }}
 
       - name: Run PHPUnit with coverage
         if: ${{ matrix.coverage }}

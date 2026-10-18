@@ -41,6 +41,7 @@
     "check-zip": "bash bin/check-zip.sh faq-jsonld.zip",
     "lint": "phpcs",
     "test": "phpunit",
+    "test:multisite": "phpunit -c phpunit-multisite.xml.dist",
     "bump-major": "composer run-script _bump-major-helper && composer update --lock",
     "bump-minor": "composer run-script _bump-minor-helper && composer update --lock",
     "bump-patch": "composer run-script _bump-patch-helper && composer update --lock",

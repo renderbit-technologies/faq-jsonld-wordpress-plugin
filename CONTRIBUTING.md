@@ -31,6 +31,8 @@ composer test
 
 The test bootstrap loads `WP_TESTS_DB_*` settings from `.env.testing`, which is gitignored. Variables already set in your shell or in CI take precedence. Without either, they default to `wordpress_test`, `root`, an empty password and `127.0.0.1`. Tests live in `tests/php`.
 
+Run `composer test:multisite` to run the suite as a multisite network. Tests that need a network are in the `ms-required` group and are left out of the single-site run; single-site-only tests are in `ms-excluded`.
+
 **JavaScript (Jest).** Needs Node 18+:
 
 ```bash
