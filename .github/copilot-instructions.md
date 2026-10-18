@@ -10,16 +10,16 @@ This plugin manages FAQ items as a custom post type (CPT) and injects FAQ JSON-L
 - **Mapping Table:** MySQL table (`fqj_mappings`) links FAQ items to posts, post types, terms, URLs, or global context. See `includes/indexer.php`.
 - **JSON-LD Output:** Injected on the frontend using `includes/frontend.php`, with per-post transient caching for performance.
 - **Cache Invalidation:** Uses a background queue (`includes/queue.php`) processed by WP-Cron or WP-CLI. Queue state and logs are visible in the Health admin page.
-- **Admin UI:** Custom meta boxes and settings in `includes/admin.php` and `includes/settings.php`. Select2 is used for post selectors (see `assets/js/fqj-admin.js`).
+- **Admin UI:** Custom meta boxes and settings in `includes/admin.php` and `includes/settings.php`. Select2 (bundled in `assets/vendor/select2`) is used for post selectors (see `assets/js/fqj-admin.js`).
 - **Health & Diagnostics:** Admin page (`includes/health.php`) shows queue status, logs, and provides manual actions.
-- **WP-CLI Integration:** `includes/wpcli.php` provides commands for purging transients and processing the invalidation queue.
+- **WP-CLI Integration:** `includes/class-fqjcli.php` provides commands for purging transients, processing the invalidation queue and showing its length.
 
 ## Developer Workflows
 
 - **Activate/Upgrade:** On plugin activation, the mapping table is created/updated automatically.
 - **Settings:** Accessible under the FAQ Items menu. Options include cache TTL, batch size, and output type.
 - **Cache Management:**
-  - Manual: Use Health admin page or WP-CLI (`wp fqj purge-transients`, `wp fqj process-queue`).
+  - Manual: Use Health admin page or WP-CLI (`wp fqj purge-transients`, `wp fqj process-queue [--limit=N]`, `wp fqj queue-info`).
   - Automatic: Invalidation queue is processed every 5 minutes by WP-Cron.
 - **Debugging:**
   - Check the Health admin page for queue/logs.
@@ -36,7 +36,7 @@ This plugin manages FAQ items as a custom post type (CPT) and injects FAQ JSON-L
 
 - **WP-Cron:** For background queue processing.
 - **WP-CLI:** For advanced/automated management.
-- **Select2 CDN:** For enhanced admin selectors.
+- **Select2:** Bundled in `assets/vendor/select2` (no CDN) for enhanced admin selectors.
 
 ## Key Files
 
@@ -47,8 +47,8 @@ This plugin manages FAQ items as a custom post type (CPT) and injects FAQ JSON-L
 - `includes/admin.php`: Admin UI/meta boxes.
 - `includes/settings.php`: Settings page.
 - `includes/health.php`: Health/diagnostics UI.
-- `includes/wpcli.php`: WP-CLI commands.
-- `assets/js/fqj-admin.js`: Admin JS (Select2, AJAX).
+- `includes/class-fqjcli.php`: WP-CLI commands.
+- `assets/js/fqj-admin.js`, `assets/js/fqj-health.js`: Admin JS (Select2, AJAX).
 
 ## Example: Adding a New Mapping Type
 

@@ -55,5 +55,3 @@ Admin JS (`assets/js/fqj-admin.js`, `fqj-health.js`) uses jQuery and a bundled S
 ## Releasing
 
 `composer bump-*` runs `bin/bump-version.php`, which keeps four version strings in sync: `composer.json` `version`, the plugin `Version` header and `FQJ_VERSION` in `faq-jsonld.php`, and `Stable tag` in `readme.txt`. It then refreshes `composer.lock`. Add a `readme.txt` changelog entry by hand. After merging to `main`, push a `vX.Y.Z` tag: `draft-release.yml` creates a draft GitHub release, and publishing it runs `deploy-wporg.yml`, which checks that the versions match and deploys to WordPress.org SVN.
-
-Note: `.github/copilot-instructions.md` is partly out of date. It refers to `includes/wpcli.php` (now `includes/class-fqjcli.php`) and a Select2 CDN (now bundled).
