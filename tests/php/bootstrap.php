@@ -9,7 +9,13 @@
 
 $root = dirname( __DIR__, 2 );
 
+require_once $root . '/vendor/autoload.php';
 require_once $root . '/vendor/yoast/phpunit-polyfills/phpunitpolyfills-autoload.php';
+
+// Load local test settings (e.g. WP_TESTS_DB_*) from .env.testing if present. Variables already set
+// in the environment, such as those from CI, take precedence. The unsafe repository also calls
+// putenv(), which wp-tests-config.php needs because it reads settings with getenv().
+Dotenv\Dotenv::createUnsafeImmutable( $root, '.env.testing' )->safeLoad();
 
 if ( ! getenv( 'WP_PHPUNIT__TESTS_CONFIG' ) ) {
 	putenv( 'WP_PHPUNIT__TESTS_CONFIG=' . __DIR__ . '/wp-tests-config.php' );

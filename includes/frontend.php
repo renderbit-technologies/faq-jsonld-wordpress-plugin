@@ -90,9 +90,8 @@ function fqj_maybe_print_faq_jsonld() {
 		return;
 	}
 
-	$opts        = get_option( FQJ_OPTION_KEY );
-	$cache_ttl   = isset( $opts['cache_ttl'] ) ? intval( $opts['cache_ttl'] ) : 12 * HOUR_IN_SECONDS;
-	$output_type = fqj_normalize_output_type( isset( $opts['output_type'] ) ? $opts['output_type'] : '' );
+	$opts      = get_option( FQJ_OPTION_KEY );
+	$cache_ttl = isset( $opts['cache_ttl'] ) ? intval( $opts['cache_ttl'] ) : 12 * HOUR_IN_SECONDS;
 
 	$transient_key = fqj_cache_key( $current_id );
 	$cached        = get_transient( $transient_key );
