@@ -59,6 +59,19 @@ class Test_FQJ_Plugin extends FQJ_TestCase {
 		$this->assertSame( 'faq-jsonld', $data['TextDomain'] );
 	}
 
+	public function test_activation_migrates_legacy_transient_queue() {
+		// Reactivation after an upgrade: the schema is already current, so plugins_loaded skipped the migration.
+		// The legacy queue comes from a filter, not the database: activation's dbDelta can issue DDL, which
+		// commits the test transaction and would leak a stored transient into later tests.
+		$legacy = function () {
+			return array( 5, 6 );
+		};
+		add_filter( 'pre_transient_fqj_invalidate_queue', $legacy );
+		fqj_activate();
+		remove_filter( 'pre_transient_fqj_invalidate_queue', $legacy );
+		$this->assertSame( array( 5, 6 ), $this->get_queue() );
+	}
+
 	public function test_activation_keeps_existing_options() {
 		update_option(
 			FQJ_OPTION_KEY,

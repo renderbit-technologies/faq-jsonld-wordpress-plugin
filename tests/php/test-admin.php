@@ -413,6 +413,46 @@ class Test_FQJ_Admin extends FQJ_TestCase {
 		$this->assertContains( 'select2', wp_scripts()->registered['fqj-admin-js']->deps );
 	}
 
+	/**
+	 * Reset the admin and Select2 handles left behind by earlier tests.
+	 */
+	private function reset_select2_handles() {
+		foreach ( array( 'fqj-admin-js', 'fqj-select2-js' ) as $handle ) {
+			wp_dequeue_script( $handle );
+			wp_deregister_script( $handle );
+		}
+		wp_dequeue_style( 'fqj-select2-css' );
+		wp_deregister_style( 'fqj-select2-css' );
+	}
+
+	public function test_admin_assets_use_select2_style_with_selectwoo_script() {
+		$this->reset_select2_handles();
+		// WooCommerce's pairing: the script is selectWoo, the stylesheet is select2.
+		wp_register_script( 'selectWoo', 'https://example.org/selectWoo.js', array( 'jquery' ), '1', true );
+		wp_register_style( 'select2', 'https://example.org/select2.css', array(), '4' );
+		$GLOBALS['post'] = get_post( $this->create_faq() ); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+		fqj_admin_assets( 'post.php' );
+
+		$this->assertTrue( wp_style_is( 'select2', 'enqueued' ) );
+		$this->assertFalse( wp_style_is( 'fqj-select2-css', 'enqueued' ) );
+		wp_dequeue_style( 'select2' );
+		wp_deregister_style( 'select2' );
+		wp_dequeue_script( 'selectWoo' );
+		wp_deregister_script( 'selectWoo' );
+	}
+
+	public function test_admin_assets_fall_back_to_bundled_css_for_reused_script() {
+		$this->reset_select2_handles();
+		wp_register_script( 'selectWoo', 'https://example.org/selectWoo.js', array( 'jquery' ), '1', true );
+		$GLOBALS['post'] = get_post( $this->create_faq() ); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+		fqj_admin_assets( 'post.php' );
+
+		$this->assertTrue( wp_style_is( 'fqj-select2-css', 'enqueued' ) );
+		$this->assertFalse( wp_script_is( 'fqj-select2-js', 'enqueued' ) );
+		wp_dequeue_script( 'selectWoo' );
+		wp_deregister_script( 'selectWoo' );
+	}
+
 	public function test_admin_assets_skip_other_screens_and_types() {
 		$GLOBALS['post'] = get_post( $this->create_faq() ); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
 		fqj_admin_assets( 'edit.php' );

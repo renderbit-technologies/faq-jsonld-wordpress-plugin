@@ -114,6 +114,9 @@ function fqj_activate_site() {
 	}
 
 	fqj_create_table();
+	// Reactivating after an upgrade skips the plugins_loaded upgrade path, so carry old data over here too.
+	fqj_migrate_legacy_queue();
+	fqj_unautoload_options();
 
 	$defaults            = array(
 		'cache_ttl'   => 12 * HOUR_IN_SECONDS,

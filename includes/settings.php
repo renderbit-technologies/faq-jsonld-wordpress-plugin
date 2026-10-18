@@ -135,10 +135,19 @@ function fqj_render_settings_page() {
 /**
  * Current cache generation. Part of every cached output key, so bumping it orphans all cached output.
  *
+ * A missing generation is seeded from the current time rather than 1, so a reinstall never reuses the
+ * namespace of output left behind in a persistent object cache by an earlier install.
+ *
  * @return int
  */
 function fqj_cache_generation() {
-	return max( 1, (int) get_option( 'fqj_cache_gen', 1 ) );
+	$generation = (int) get_option( 'fqj_cache_gen', 0 );
+	if ( $generation < 1 ) {
+		$generation = time();
+		add_option( 'fqj_cache_gen', $generation, '', true );
+	}
+
+	return $generation;
 }
 
 /**
@@ -164,11 +173,7 @@ function fqj_purge_all_faq_transients() {
 	global $wpdb;
 
 	$generation = fqj_cache_generation() + 1;
-	if ( false === get_option( 'fqj_cache_gen' ) ) {
-		add_option( 'fqj_cache_gen', $generation, '', true );
-	} else {
-		update_option( 'fqj_cache_gen', $generation, true );
-	}
+	update_option( 'fqj_cache_gen', $generation, true );
 
 	if ( ! wp_using_ext_object_cache() ) {
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching

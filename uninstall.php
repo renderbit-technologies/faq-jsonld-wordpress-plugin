@@ -52,7 +52,8 @@ $fqj_uninstall_site = function () {
 			$faq_ids = get_posts(
 				array(
 					'post_type'              => 'faq_item',
-					'post_status'            => 'any',
+					// 'any' skips statuses excluded from search, such as trash.
+					'post_status'            => array_keys( get_post_stati() ),
 					'posts_per_page'         => 100,
 					'fields'                 => 'ids',
 					'no_found_rows'          => true,

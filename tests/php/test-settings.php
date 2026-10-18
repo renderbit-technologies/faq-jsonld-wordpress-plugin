@@ -193,8 +193,18 @@ class Test_FQJ_Settings extends FQJ_TestCase {
 	public function test_cache_key_includes_generation_and_post_id() {
 		update_option( 'fqj_cache_gen', 4 );
 		$this->assertSame( 'fqj_faq_json_4_9', fqj_cache_key( 9 ) );
+	}
+
+	public function test_missing_generation_is_seeded_from_time_and_stored() {
 		delete_option( 'fqj_cache_gen' );
-		$this->assertSame( 'fqj_faq_json_1_9', fqj_cache_key( 9 ) );
+		$before = time();
+		$key    = fqj_cache_key( 9 );
+		$gen    = (int) get_option( 'fqj_cache_gen' );
+
+		// A reinstall must not reuse a low generation that an object cache may still hold output for.
+		$this->assertGreaterThanOrEqual( $before, $gen );
+		$this->assertSame( 'fqj_faq_json_' . $gen . '_9', $key );
+		$this->assertSame( $gen, fqj_cache_generation() );
 	}
 
 	public function test_purge_makes_cached_output_unreachable_with_external_object_cache() {

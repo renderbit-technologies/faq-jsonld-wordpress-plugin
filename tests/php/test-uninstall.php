@@ -96,7 +96,13 @@ class Test_FQJ_Uninstall extends FQJ_TestCase {
 				'post_status' => 'draft',
 			)
 		);
-		$post  = self::factory()->post->create();
+		$trashed = self::factory()->post->create(
+			array(
+				'post_type'   => 'faq_item',
+				'post_status' => 'trash',
+			)
+		);
+		$post    = self::factory()->post->create();
 		update_post_meta( $faq, 'fqj_assoc_type', 'urls' );
 		add_filter( 'fqj_uninstall_delete_faqs', '__return_true' );
 
@@ -105,6 +111,7 @@ class Test_FQJ_Uninstall extends FQJ_TestCase {
 		remove_filter( 'fqj_uninstall_delete_faqs', '__return_true' );
 		$this->assertNull( get_post( $faq ) );
 		$this->assertNull( get_post( $draft ) );
+		$this->assertNull( get_post( $trashed ) );
 		$this->assertNotNull( get_post( $post ) );
 	}
 }

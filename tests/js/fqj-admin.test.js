@@ -232,6 +232,44 @@ describe("initial data and switching", () => {
     expect(document.querySelectorAll("#fqj_assoc_terms_select option")).toHaveLength(0);
   });
 
+  test("keeps saved post types while their request is pending and ignores stale responses", async () => {
+    renderMetaBox("post_types", { post_types: ["page"] });
+    window.fqjAdmin = { ajax_url: "/wp-admin/admin-ajax.php", nonce: "abc123" };
+    const pending = [];
+    const get = jest.fn((url, data, success) => {
+      pending.push(success);
+      return {
+        fail() {
+          return this;
+        },
+      };
+    });
+    const $ = await loadScript(loadAdmin, (jq) => {
+      jq.fn.select2 = jest.fn(function () {
+        return this;
+      });
+      jq.get = get;
+    });
+    const types = [
+      { name: "post", label: "Post" },
+      { name: "page", label: "Page" },
+    ];
+
+    // Switch away and back before the first request answers.
+    $("#fqj_assoc_type").val("global").trigger("change");
+    $("#fqj_assoc_type").val("post_types").trigger("change");
+    pending[0](types);
+    pending[1](types);
+
+    const boxes = Array.from(
+      document.querySelectorAll('input[name="fqj_assoc_post_types[]"]')
+    );
+    expect(boxes.map((b) => [b.value, b.checked])).toEqual([
+      ["post", false],
+      ["page", true],
+    ]);
+  });
+
   test("restores checked post types", async () => {
     const { $ } = await boot("post_types", { post_types: ["page"] }, [
       { name: "post", label: "Post" },

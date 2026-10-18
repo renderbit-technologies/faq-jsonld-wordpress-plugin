@@ -53,8 +53,23 @@ function fqj_admin_assets( $hook ) {
 		);
 	} else {
 		wp_enqueue_script( $select2_handle );
-		if ( wp_style_is( $select2_handle, 'registered' ) ) {
-			wp_enqueue_style( $select2_handle );
+		// The style handle can differ from the script's (WooCommerce registers selectWoo JS with select2 CSS).
+		$style_handle = '';
+		foreach ( array( $select2_handle, 'select2', 'selectWoo' ) as $candidate ) {
+			if ( wp_style_is( $candidate, 'registered' ) ) {
+				$style_handle = $candidate;
+				break;
+			}
+		}
+		if ( $style_handle ) {
+			wp_enqueue_style( $style_handle );
+		} else {
+			wp_enqueue_style(
+				'fqj-select2-css',
+				FQJ_PLUGIN_URL . 'assets/vendor/select2/select2.min.css',
+				array(),
+				'4.0.13'
+			);
 		}
 	}
 

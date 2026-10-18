@@ -23,8 +23,19 @@ jQuery(document).ready(function ($) {
     return $el;
   }
 
+  // Data the current field was rendered from, a render counter so late AJAX
+  // responses for an earlier render are ignored, and whether the post type
+  // checkboxes have arrived yet.
+  var renderedData = {};
+  var renderSeq = 0;
+  var postTypesLoaded = false;
+
   function renderField(type, data) {
     $container.empty();
+    renderedData = data;
+    renderSeq++;
+    postTypesLoaded = false;
+    var seq = renderSeq;
     if (type === "urls") {
       var urls = data.urls ? data.urls.join("\n") : "";
       $container.append(el("p").text(i18n.urlsHelp));
@@ -89,6 +100,7 @@ jQuery(document).ready(function ($) {
         fqjAdmin.ajax_url,
         { action: "fqj_get_post_types", nonce: fqjAdmin.nonce },
         function (resp) {
+          if (seq !== renderSeq) return;
           if (!resp || !resp.length) return;
           var wrap = $("#fqj_post_types_wrap");
           resp.forEach(function (pt) {
@@ -108,6 +120,7 @@ jQuery(document).ready(function ($) {
                 .append(document.createTextNode(" " + pt.label))
             );
           });
+          postTypesLoaded = true;
         },
         "json"
       );
@@ -192,6 +205,10 @@ jQuery(document).ready(function ($) {
       return { terms: selectedOptions("#fqj_assoc_terms_select") };
     }
     if (type === "post_types") {
+      // Until the checkboxes load, keep the data they would have shown.
+      if (!postTypesLoaded) {
+        return { post_types: renderedData.post_types || [] };
+      }
       return {
         post_types: $('input[name="fqj_assoc_post_types[]"]:checked')
           .map(function () {

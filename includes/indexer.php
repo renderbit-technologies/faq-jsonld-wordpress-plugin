@@ -48,11 +48,12 @@ function fqj_create_table() {
     ) {$charset_collate};";
 
 	// Invalidation queue: single posts plus post_type/term jobs that the worker expands from job_cursor.
+	// Values are IDs or post type names (max 20 chars); the unique key stays under the 767-byte InnoDB limit.
 	$queue_table = fqj_queue_table_name();
 	$queue_sql   = "CREATE TABLE {$queue_table} (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
       item_type VARCHAR(32) NOT NULL,
-      item_value VARCHAR(191) NOT NULL,
+      item_value VARCHAR(64) NOT NULL,
       job_cursor BIGINT UNSIGNED NOT NULL DEFAULT 0,
       PRIMARY KEY  (id),
       UNIQUE KEY uniq_item (item_type,item_value)
