@@ -37,8 +37,8 @@ function fqj_create_table() {
 	$charset_collate = $wpdb->get_charset_collate();
 
 	$sql = "CREATE TABLE {$table_name} (
-      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-      faq_id BIGINT UNSIGNED NOT NULL,
+      id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+      faq_id bigint(20) unsigned NOT NULL,
       mapping_type VARCHAR(32) NOT NULL,
       mapping_value TEXT NOT NULL,
       PRIMARY KEY  (id),
@@ -51,10 +51,10 @@ function fqj_create_table() {
 	// Values are IDs or post type names (max 20 chars); the unique key stays under the 767-byte InnoDB limit.
 	$queue_table = fqj_queue_table_name();
 	$queue_sql   = "CREATE TABLE {$queue_table} (
-      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
       item_type VARCHAR(32) NOT NULL,
       item_value VARCHAR(64) NOT NULL,
-      job_cursor BIGINT UNSIGNED NOT NULL DEFAULT 0,
+      job_cursor bigint(20) unsigned NOT NULL DEFAULT 0,
       PRIMARY KEY  (id),
       UNIQUE KEY uniq_item (item_type,item_value)
     ) {$charset_collate};";
