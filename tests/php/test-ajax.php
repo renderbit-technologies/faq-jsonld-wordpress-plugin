@@ -89,6 +89,24 @@ class Test_FQJ_Ajax extends WP_Ajax_UnitTestCase {
 		$this->assertSame( 'Shipping policy – http://example.org/shipping-policy/', $by_id[ $match ] );
 	}
 
+	public function test_search_posts_includes_custom_public_post_types_only() {
+		register_post_type( 'fqj_book', array( 'public' => true ) );
+		register_post_type( 'fqj_secret', array( 'public' => false ) );
+		$book   = self::factory()->post->create( array( 'post_title' => 'Zebra book', 'post_type' => 'fqj_book' ) );
+		self::factory()->post->create( array( 'post_title' => 'Zebra secret', 'post_type' => 'fqj_secret' ) );
+		self::factory()->post->create( array( 'post_title' => 'Zebra faq', 'post_type' => 'faq_item' ) );
+		$attach = self::factory()->post->create( array( 'post_title' => 'Zebra file', 'post_type' => 'attachment', 'post_status' => 'inherit' ) );
+
+		$this->nonce( 'fqj_admin_nonce' );
+		$_GET['q'] = 'Zebra';
+		$ids       = wp_list_pluck( $this->call( 'fqj_search_posts' ), 'id' );
+		unregister_post_type( 'fqj_book' );
+		unregister_post_type( 'fqj_secret' );
+
+		$this->assertSame( array( $book ), $ids );
+		$this->assertNotContains( $attach, $ids );
+	}
+
 	public function test_search_posts_with_empty_query() {
 		$this->nonce( 'fqj_admin_nonce' );
 		$this->assertSame( array(), $this->call( 'fqj_search_posts' ) );

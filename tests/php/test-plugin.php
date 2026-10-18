@@ -50,7 +50,13 @@ class Test_FQJ_Plugin extends FQJ_TestCase {
 		$this->assertSame( 12 * HOUR_IN_SECONDS, $opts['cache_ttl'] );
 		$this->assertSame( 500, $opts['batch_size'] );
 		$this->assertSame( 'faqpage', $opts['output_type'] );
-		$this->assertSame( 'fqj_five_minutes', $opts['queue_cron_interval'] );
+		$this->assertArrayNotHasKey( 'queue_cron_interval', $opts );
+	}
+
+	public function test_version_constant_matches_plugin_header() {
+		$data = get_file_data( FQJ_PLUGIN_DIR . 'faq-jsonld.php', array( 'Version' => 'Version', 'TextDomain' => 'Text Domain' ) );
+		$this->assertSame( $data['Version'], FQJ_VERSION );
+		$this->assertSame( 'faq-jsonld', $data['TextDomain'] );
 	}
 
 	public function test_activation_keeps_existing_options() {

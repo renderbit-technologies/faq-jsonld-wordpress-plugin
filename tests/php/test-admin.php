@@ -196,11 +196,16 @@ class Test_FQJ_Admin extends FQJ_TestCase {
 		$this->assertSame( array( 'urls' => array() ), $this->payload( $faq ) );
 	}
 
-	public function test_save_unknown_type_stores_empty_payload() {
+	public function test_save_unknown_type_leaves_existing_data_untouched() {
 		$faq = $this->create_faq( 'Q', 'A', array( 'global' => true ) );
+		$before_meta     = get_post_meta( $faq, 'fqj_assoc_data_json', true );
+		$before_mappings = $this->get_mappings( $faq );
+		$this->assertNotEmpty( $before_mappings );
+
 		$this->submit( $faq, array( 'fqj_assoc_type' => 'bogus' ) );
-		$this->assertSame( '[]', get_post_meta( $faq, 'fqj_assoc_data_json', true ) );
-		$this->assertSame( array(), $this->get_mappings( $faq ) );
+
+		$this->assertSame( $before_meta, get_post_meta( $faq, 'fqj_assoc_data_json', true ) );
+		$this->assertSame( $before_mappings, $this->get_mappings( $faq ) );
 	}
 
 	public function test_save_switching_type_drops_old_mappings() {

@@ -5,12 +5,14 @@
  * Description: Manage FAQ items as CPT and inject FAQ JSON-LD. Uses a custom mapping table (fast), per-post
  *              transient caching, background invalidation queue (WP-Cron), settings UI and WP-CLI tools.
  * Version:     2.2.0
+ * Requires at least: 6.5
+ * Requires PHP: 7.2
  * Author:      Renderbit Technologies
- * License:     GPLv2+
+ * License:     GPLv2 or later
+ * License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+ * Text Domain: faq-jsonld
  *
  * @package FAQ_JSON_LD
- *
- * NOTE: original source content (optional import reference): /mnt/data/FAQs section content.docx
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -19,6 +21,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 // phpcs:disable PSR1.Files.SideEffects
 
+// Keep in sync with the Version header above; used to version the plugin's own assets.
+define( 'FQJ_VERSION', '2.2.0' );
+// Upper bound for the invalidation batch size setting.
+define( 'FQJ_MAX_BATCH_SIZE', 5000 );
 define( 'FQJ_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'FQJ_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'FQJ_OPTION_KEY', 'fqj_settings' );
@@ -46,15 +52,15 @@ require_once FQJ_PLUGIN_DIR . 'includes/health.php';
  */
 function fqj_register_cpt_faq_item() {
 	$labels = array(
-		'name'          => 'FAQ Items',
-		'singular_name' => 'FAQ Item',
-		'add_new_item'  => 'Add FAQ Item',
-		'edit_item'     => 'Edit FAQ Item',
-		'new_item'      => 'New FAQ Item',
-		'view_item'     => 'View FAQ Item',
-		'search_items'  => 'Search FAQ Items',
-		'not_found'     => 'No FAQ items found',
-		'all_items'     => 'All FAQ Items',
+		'name'          => __( 'FAQ Items', 'faq-jsonld' ),
+		'singular_name' => __( 'FAQ Item', 'faq-jsonld' ),
+		'add_new_item'  => __( 'Add FAQ Item', 'faq-jsonld' ),
+		'edit_item'     => __( 'Edit FAQ Item', 'faq-jsonld' ),
+		'new_item'      => __( 'New FAQ Item', 'faq-jsonld' ),
+		'view_item'     => __( 'View FAQ Item', 'faq-jsonld' ),
+		'search_items'  => __( 'Search FAQ Items', 'faq-jsonld' ),
+		'not_found'     => __( 'No FAQ items found', 'faq-jsonld' ),
+		'all_items'     => __( 'All FAQ Items', 'faq-jsonld' ),
 	);
 	$args   = array(
 		'labels'          => $labels,
@@ -110,10 +116,9 @@ function fqj_activate_site() {
 	fqj_create_table();
 
 	$defaults            = array(
-		'cache_ttl'           => 12 * HOUR_IN_SECONDS,
-		'batch_size'          => 500,
-		'output_type'         => 'faqpage',
-		'queue_cron_interval' => 'fqj_five_minutes', // Interval name.
+		'cache_ttl'   => 12 * HOUR_IN_SECONDS,
+		'batch_size'  => 500,
+		'output_type' => 'faqpage',
 	);
 	$opts                = get_option( FQJ_OPTION_KEY, array() );
 	$opts                = wp_parse_args( $opts, $defaults );

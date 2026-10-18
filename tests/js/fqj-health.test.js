@@ -163,3 +163,25 @@ describe.each([
     expect(text("fqj-action-status")).toBe("Request failed.");
   });
 });
+
+describe("localized strings", () => {
+  test("uses fqjHealth.i18n when provided", async () => {
+    renderPage();
+    window.fqjHealth = {
+      ajax_url: "/x",
+      nonce: "n",
+      i18n: { processing: "Traitement…", processed: "%d éléments traités." },
+    };
+    const post = fakeRequest({
+      response: {
+        success: true,
+        data: { processed: 3, queue_len: 0, last_run_human: "" },
+      },
+    });
+    await loadScript(loadHealth, (jq) => {
+      jq.post = post;
+    });
+    click("fqj-process-now");
+    expect(text("fqj-action-status")).toBe("3 éléments traités.");
+  });
+});

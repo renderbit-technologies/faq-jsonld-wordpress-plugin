@@ -120,6 +120,12 @@ class Test_FQJ_Settings extends FQJ_TestCase {
 		$this->assertSame( 'fqj_five_minutes', get_option( FQJ_OPTION_KEY )['queue_cron_interval'] );
 	}
 
+	public function test_save_caps_batch_size() {
+		$this->save( array( 'batch_size' => '999999' ) );
+		$this->assertSame( FQJ_MAX_BATCH_SIZE, get_option( FQJ_OPTION_KEY )['batch_size'] );
+		$this->assertSame( 5000, FQJ_MAX_BATCH_SIZE );
+	}
+
 	public function test_save_ignored_with_bad_nonce() {
 		update_option( FQJ_OPTION_KEY, array( 'cache_ttl' => 999 ) );
 		$_POST = array(
