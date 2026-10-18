@@ -86,6 +86,20 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 		$this->assertSame( 'fresh', get_transient( fqj_cache_key( 5 ) ) );
 	}
 
+	public function test_data_migration_normalizes_legacy_faqsection_option_and_purges() {
+		update_option( FQJ_OPTION_KEY, array( 'output_type' => 'faqsection', 'cache_ttl' => 99 ) );
+		$stale_key = fqj_cache_key( 5 );
+		set_transient( $stale_key, 'stale', 600 );
+		delete_option( FQJ_DATA_VERSION_OPTION );
+
+		fqj_run_data_migration();
+
+		$opts = get_option( FQJ_OPTION_KEY );
+		$this->assertSame( 'faqpage', $opts['output_type'] );
+		$this->assertSame( 99, $opts['cache_ttl'] );
+		$this->assertFalse( get_transient( $stale_key ) );
+	}
+
 	public function test_data_migration_reindexes_trashed_faqs() {
 		$faq = self::factory()->post->create(
 			array(

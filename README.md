@@ -31,13 +31,20 @@ A WordPress plugin to manage FAQ items as a custom post type (CPT) and inject FA
 
 - **Add FAQ Items:** Use the `FAQ Items` CPT in the admin menu.
 - **Associate FAQs:** Use meta boxes to link FAQs to posts, post types, terms, URLs, or globally.
-- **Settings:** Configure cache TTL, batch size, and output type under the FAQ Items > Settings menu.
+- **Singular content only:** JSON-LD is printed on singular views (posts, pages, custom post types). Blog home, archives and search results never output FAQ markup, so URL mappings apply to singular content only (archive URLs are not matched).
+- **Output:** Markup is schema.org `FAQPage`. Question and answer text is plain text: tags stripped, entities decoded, whitespace collapsed. Answers run through blocks and shortcodes but not the `the_content` filter.
+- **Settings:** Configure cache TTL and batch size under the FAQ Items > Settings menu.
 - **Health:** Monitor queue/logs and run manual actions under FAQ Items > Health.
 - **WP-CLI:**
   - `wp fqj purge-transients` — Purge all FAQ JSON-LD transients.
   - `wp fqj process-queue [--limit=N]` — Process the invalidation queue.
 
 ## Developer Notes
+
+### Filters
+
+- `fqj_question_text( $text, $faq_post )` — filter the plain-text question for a FAQ item.
+- `fqj_answer_text( $text, $faq_post )` — filter the plain-text answer. Return plain text; the JSON encoder escapes `<`, `>` and `&`. Cached output is cleared on settings changes or with `wp fqj purge-transients`.
 
 - **Key Files:**
   - `faq-jsonld.php`: Main loader and CPT registration

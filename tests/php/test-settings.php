@@ -72,7 +72,7 @@ class Test_FQJ_Settings extends FQJ_TestCase {
 		$html = $this->render();
 		$this->assertStringContainsString( 'value="43200"', $html );
 		$this->assertStringContainsString( 'value="500"', $html );
-		$this->assertMatchesRegularExpression( '/<option value="faqsection"\s+selected=\'selected\'>/', $html );
+		$this->assertMatchesRegularExpression( '/<option value="faqpage"\s+selected=\'selected\'>/', $html );
 	}
 
 	public function test_save_valid_settings() {
@@ -103,7 +103,7 @@ class Test_FQJ_Settings extends FQJ_TestCase {
 		$opts = get_option( FQJ_OPTION_KEY );
 		$this->assertSame( 60, $opts['cache_ttl'] );
 		$this->assertSame( 10, $opts['batch_size'] );
-		$this->assertSame( 'faqsection', $opts['output_type'] );
+		$this->assertSame( 'faqpage', $opts['output_type'] );
 	}
 
 	public function test_save_with_missing_fields_uses_minimums() {
@@ -111,7 +111,7 @@ class Test_FQJ_Settings extends FQJ_TestCase {
 		$opts = get_option( FQJ_OPTION_KEY );
 		$this->assertSame( 60, $opts['cache_ttl'] );
 		$this->assertSame( 10, $opts['batch_size'] );
-		$this->assertSame( 'faqsection', $opts['output_type'] );
+		$this->assertSame( 'faqpage', $opts['output_type'] );
 	}
 
 	public function test_save_keeps_other_option_keys() {
@@ -223,20 +223,28 @@ class Test_FQJ_Settings extends FQJ_TestCase {
 		$this->assertSame( 'keep', get_option( '_transient_fqjXfaqXjson_1' ) );
 	}
 
-	public function test_changing_output_type_purges_cache() {
+	public function test_equivalent_output_types_do_not_purge_cache() {
 		update_option( FQJ_OPTION_KEY, array( 'output_type' => 'faqsection' ) );
 		$gen = fqj_cache_generation();
 
 		update_option(
 			FQJ_OPTION_KEY,
 			array(
-				'output_type' => 'faqsection',
+				'output_type' => 'faqpage',
 				'cache_ttl'   => 100,
 			)
 		);
 		$this->assertSame( $gen, fqj_cache_generation() );
+	}
 
-		update_option( FQJ_OPTION_KEY, array( 'output_type' => 'faqpage' ) );
-		$this->assertSame( $gen + 1, fqj_cache_generation() );
+	public function test_settings_page_offers_only_faqpage() {
+		$html = $this->render();
+		$this->assertStringNotContainsString( 'faqsection', $html );
+		$this->assertStringNotContainsString( 'FAQSection', $html );
+	}
+
+	public function test_posted_faqsection_is_stored_as_faqpage() {
+		$this->save( array( 'output_type' => 'faqsection' ) );
+		$this->assertSame( 'faqpage', get_option( FQJ_OPTION_KEY )['output_type'] );
 	}
 }

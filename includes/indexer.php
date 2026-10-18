@@ -128,6 +128,13 @@ function fqj_run_data_migration() {
 		return;
 	}
 
+	// FAQSection was never a schema.org type; store the normalized value (the purge below fixes cached output).
+	$opts = get_option( FQJ_OPTION_KEY );
+	if ( is_array( $opts ) && isset( $opts['output_type'] ) && fqj_normalize_output_type( $opts['output_type'] ) !== $opts['output_type'] ) {
+		$opts['output_type'] = fqj_normalize_output_type( $opts['output_type'] );
+		update_option( FQJ_OPTION_KEY, $opts );
+	}
+
 	$batch_size = max( 1, (int) apply_filters( 'fqj_data_migration_batch_size', 25 ) );
 	$cursor     = (int) get_option( FQJ_DATA_MIGRATION_CURSOR_OPTION, 0 );
 	$ids        = fqj_get_faq_ids_after( $cursor, $batch_size );

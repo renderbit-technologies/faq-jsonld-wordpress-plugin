@@ -49,7 +49,7 @@ class Test_FQJ_Plugin extends FQJ_TestCase {
 		$opts = get_option( FQJ_OPTION_KEY );
 		$this->assertSame( 12 * HOUR_IN_SECONDS, $opts['cache_ttl'] );
 		$this->assertSame( 500, $opts['batch_size'] );
-		$this->assertSame( 'faqsection', $opts['output_type'] );
+		$this->assertSame( 'faqpage', $opts['output_type'] );
 		$this->assertSame( 'fqj_five_minutes', $opts['queue_cron_interval'] );
 	}
 

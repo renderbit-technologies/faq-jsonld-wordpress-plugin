@@ -26,7 +26,7 @@ define( 'FQJ_DB_VERSION', '2' );
 define( 'FQJ_DB_VERSION_OPTION', 'fqj_db_version' );
 
 // Data migration version: bump to run a one-time reindex and cache purge on existing sites.
-define( 'FQJ_DATA_VERSION', '1' );
+define( 'FQJ_DATA_VERSION', '2' );
 define( 'FQJ_DATA_VERSION_OPTION', 'fqj_data_version' );
 define( 'FQJ_DATA_MIGRATION_CURSOR_OPTION', 'fqj_data_migration_cursor' );
 
@@ -109,14 +109,15 @@ function fqj_activate_site() {
 
 	fqj_create_table();
 
-	$defaults = array(
+	$defaults            = array(
 		'cache_ttl'           => 12 * HOUR_IN_SECONDS,
 		'batch_size'          => 500,
-		'output_type'         => 'faqsection',
+		'output_type'         => 'faqpage',
 		'queue_cron_interval' => 'fqj_five_minutes', // Interval name.
 	);
-	$opts     = get_option( FQJ_OPTION_KEY, array() );
-	$opts     = wp_parse_args( $opts, $defaults );
+	$opts                = get_option( FQJ_OPTION_KEY, array() );
+	$opts                = wp_parse_args( $opts, $defaults );
+	$opts['output_type'] = fqj_normalize_output_type( $opts['output_type'] );
 	update_option( FQJ_OPTION_KEY, $opts );
 
 	// schedule cron if not scheduled.

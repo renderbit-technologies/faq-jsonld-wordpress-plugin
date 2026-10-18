@@ -93,13 +93,13 @@ abstract class FQJ_TestCase extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Run the frontend printer for a post and return what it echoed.
+	 * Run the frontend printer on the real singular request for a post and return what it echoed.
 	 *
 	 * @param int $post_id Post ID.
 	 * @return string
 	 */
 	protected function render_head_for( $post_id ) {
-		$GLOBALS['post'] = get_post( $post_id ); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+		$this->go_to( get_permalink( $post_id ) );
 		ob_start();
 		fqj_maybe_print_faq_jsonld();
 

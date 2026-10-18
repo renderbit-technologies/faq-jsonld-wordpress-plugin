@@ -48,9 +48,7 @@ function fqj_render_settings_page() {
 		$batch_size  = isset( $_POST['batch_size'] ) ? intval( $_POST['batch_size'] ) : 0;
 		$posted_type = isset( $_POST['output_type'] ) ? sanitize_text_field( wp_unslash( $_POST['output_type'] ) ) : '';
 
-		$output_type = in_array( $posted_type, array( 'faqsection', 'faqpage' ), true )
-			? $posted_type
-			: 'faqsection';
+		$output_type = fqj_normalize_output_type( $posted_type );
 
 		$options['cache_ttl']   = max( 60, $cache_ttl );
 		$options['batch_size']  = max( 10, $batch_size );
@@ -62,7 +60,7 @@ function fqj_render_settings_page() {
 
 	$cache_ttl   = isset( $options['cache_ttl'] ) ? intval( $options['cache_ttl'] ) : 12 * HOUR_IN_SECONDS;
 	$batch_size  = isset( $options['batch_size'] ) ? intval( $options['batch_size'] ) : 500;
-	$output_type = isset( $options['output_type'] ) ? $options['output_type'] : 'faqsection';
+	$output_type = fqj_normalize_output_type( isset( $options['output_type'] ) ? $options['output_type'] : '' );
 	?>
 	<div class="wrap">
 		<h1>FAQ JSON-LD Settings</h1>
@@ -91,16 +89,12 @@ function fqj_render_settings_page() {
 					<th scope="row"><label for="output_type">Default output type</label></th>
 					<td>
 						<select name="output_type" id="output_type">
-							<option value="faqsection" <?php selected( $output_type, 'faqsection' ); ?>>
-								FAQSection (recommended)
-							</option>
 							<option value="faqpage" <?php selected( $output_type, 'faqpage' ); ?>>
-								FAQPage
+								FAQPage (recommended)
 							</option>
 						</select>
 						<p class="description">
-						Choose whether the plugin outputs <code>FAQSection</code> or <code>FAQPage</code> by default.
-						Individual FAQs still control associations.
+						The plugin outputs schema.org <code>FAQPage</code> markup. Individual FAQs control associations.
 						</p>
 					</td>
 				</tr>
@@ -193,14 +187,26 @@ function fqj_purge_all_faq_transients() {
 }
 
 /**
+ * Normalize a stored output type. "FAQSection" is not a schema.org type, so legacy and unknown values become FAQPage.
+ *
+ * @param mixed $type Stored or posted value.
+ * @return string
+ */
+function fqj_normalize_output_type( $type ) {
+	unset( $type );
+
+	return 'faqpage';
+}
+
+/**
  * Cached output depends on the output type, so changing it must purge.
  *
  * @param mixed $old_value Previous settings.
  * @param mixed $value     New settings.
  */
 function fqj_maybe_purge_on_settings_change( $old_value, $value ) {
-	$old_type = is_array( $old_value ) && isset( $old_value['output_type'] ) ? $old_value['output_type'] : 'faqsection';
-	$new_type = is_array( $value ) && isset( $value['output_type'] ) ? $value['output_type'] : 'faqsection';
+	$old_type = is_array( $old_value ) && isset( $old_value['output_type'] ) ? fqj_normalize_output_type( $old_value['output_type'] ) : 'faqpage';
+	$new_type = is_array( $value ) && isset( $value['output_type'] ) ? fqj_normalize_output_type( $value['output_type'] ) : 'faqpage';
 	if ( $old_type !== $new_type ) {
 		fqj_purge_all_faq_transients();
 	}
