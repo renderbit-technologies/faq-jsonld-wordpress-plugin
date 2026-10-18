@@ -39,11 +39,13 @@ class Test_FQJ_Uninstall extends FQJ_TestCase {
 
 		parent::tear_down();
 
-		fqj_activate();
+		// Delete the kept posts first: activation skips the data version option while FAQs exist.
 		foreach ( $this->post_ids as $post_id ) {
 			wp_delete_post( $post_id, true );
 		}
 		delete_transient( 'keep_me' );
+		// Uninstall clears every site of a network.
+		fqj_activate( true );
 		$wpdb->query( 'COMMIT' );
 		self::flush_cache();
 	}
