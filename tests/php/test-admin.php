@@ -106,7 +106,13 @@ class Test_FQJ_Admin extends FQJ_TestCase {
 
 	public function test_clean_save_clears_stale_rejected_url_notice() {
 		$faq = $this->create_faq();
-		$this->submit( $faq, array( 'fqj_assoc_type' => 'urls', 'fqj_assoc_urls' => 'javascript:alert(1)' ) );
+		$this->submit(
+			$faq,
+			array(
+				'fqj_assoc_type' => 'urls',
+				'fqj_assoc_urls' => 'javascript:alert(1)',
+			)
+		);
 		$this->submit( $faq, array( 'fqj_assoc_type' => 'global' ) );
 
 		$_GET['post'] = $faq;

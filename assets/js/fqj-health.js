@@ -11,10 +11,7 @@ jQuery(document).ready(function ($) {
       function (resp) {
         if (resp.success) {
           $("#fqj-queue-count").text(resp.data.queue_len);
-          var lastrun = resp.data.last_run
-            ? new Date(resp.data.last_run * 1000)
-            : null;
-          $("#fqj-last-run").text(lastrun ? lastrun.toLocaleString() : "n/a");
+          $("#fqj-last-run").text(resp.data.last_run_human || "n/a");
           $status.text("Processed " + resp.data.processed + " items.");
         } else {
           $status.text(

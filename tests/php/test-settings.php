@@ -166,7 +166,7 @@ class Test_FQJ_Settings extends FQJ_TestCase {
 		$key_22 = fqj_cache_key( 22 );
 		set_transient( $key_1, 'a', 600 );
 		set_transient( $key_22, 'b' );
-		set_transient( 'fqj_invalidate_queue', array( 1 ) );
+		fqj_queue_add_posts( array( 1 ) );
 		set_transient( 'other_plugin_cache', 'c' );
 
 		fqj_purge_all_faq_transients();
@@ -174,7 +174,7 @@ class Test_FQJ_Settings extends FQJ_TestCase {
 		$this->assertFalse( get_transient( $key_1 ) );
 		$this->assertFalse( get_option( '_transient_timeout_' . $key_1 ) );
 		$this->assertFalse( get_option( '_transient_' . $key_22 ) );
-		$this->assertSame( array( 1 ), get_transient( 'fqj_invalidate_queue' ) );
+		$this->assertSame( array( 1 ), $this->get_queue() );
 		$this->assertSame( 'c', get_transient( 'other_plugin_cache' ) );
 	}
 
@@ -193,7 +193,7 @@ class Test_FQJ_Settings extends FQJ_TestCase {
 
 	public function test_purge_makes_cached_output_unreachable_with_external_object_cache() {
 		global $wp_using_ext_object_cache;
-		$previous                   = $wp_using_ext_object_cache;
+		$previous                  = $wp_using_ext_object_cache;
 		$wp_using_ext_object_cache = true; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
 
 		try {
@@ -227,7 +227,13 @@ class Test_FQJ_Settings extends FQJ_TestCase {
 		update_option( FQJ_OPTION_KEY, array( 'output_type' => 'faqsection' ) );
 		$gen = fqj_cache_generation();
 
-		update_option( FQJ_OPTION_KEY, array( 'output_type' => 'faqsection', 'cache_ttl' => 100 ) );
+		update_option(
+			FQJ_OPTION_KEY,
+			array(
+				'output_type' => 'faqsection',
+				'cache_ttl'   => 100,
+			)
+		);
 		$this->assertSame( $gen, fqj_cache_generation() );
 
 		update_option( FQJ_OPTION_KEY, array( 'output_type' => 'faqpage' ) );

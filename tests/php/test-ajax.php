@@ -13,7 +13,6 @@ class Test_FQJ_Ajax extends WP_Ajax_UnitTestCase {
 	public function set_up() {
 		parent::set_up();
 		$this->set_permalink_structure( '/%postname%/' );
-		delete_transient( 'fqj_invalidate_queue' );
 		$this->_setRole( 'administrator' );
 
 		// admin_init would otherwise try to reach wordpress.org for update checks.
@@ -152,6 +151,8 @@ class Test_FQJ_Ajax extends WP_Ajax_UnitTestCase {
 		$this->assertSame( 2, $resp['data']['processed'] );
 		$this->assertSame( 1, $resp['data']['queue_len'] );
 		$this->assertGreaterThan( 0, $resp['data']['last_run'] );
+		$this->assertSame( wp_date( 'Y-m-d H:i:s', $resp['data']['last_run'] ), substr( $resp['data']['last_run_human'], 0, 19 ) );
+		$this->assertStringEndsWith( ' ago)', $resp['data']['last_run_human'] );
 		$this->assertFalse( get_transient( fqj_cache_key( 11 ) ) );
 	}
 

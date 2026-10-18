@@ -68,10 +68,12 @@ $fqj_uninstall_site = function () {
 	delete_post_meta_by_key( 'fqj_assoc_type' );
 	delete_post_meta_by_key( 'fqj_assoc_data_json' );
 
-	// Drop table. The name is built from $wpdb->prefix only, so it is safe to interpolate.
-	$table = $wpdb->prefix . 'fqj_mappings';
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-	$wpdb->query( "DROP TABLE IF EXISTS {$table}" );
+	// Drop tables. The names are built from $wpdb->prefix only, so they are safe to interpolate.
+	foreach ( array( 'fqj_mappings', 'fqj_queue' ) as $fqj_table ) {
+		$table = $wpdb->prefix . $fqj_table;
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$wpdb->query( "DROP TABLE IF EXISTS {$table}" );
+	}
 };
 
 if ( is_multisite() ) {

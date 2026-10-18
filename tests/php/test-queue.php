@@ -19,7 +19,7 @@ class Test_FQJ_Queue extends FQJ_TestCase {
 	public function test_add_rejects_empty_input() {
 		$this->assertFalse( fqj_queue_add_posts( array() ) );
 		$this->assertFalse( fqj_queue_add_posts( array( 0, '0', 'abc', null ) ) );
-		$this->assertFalse( get_transient( 'fqj_invalidate_queue' ) );
+		$this->assertSame( 0, fqj_queue_length() );
 	}
 
 	public function test_add_casts_and_skips_already_queued_ids() {
@@ -35,19 +35,68 @@ class Test_FQJ_Queue extends FQJ_TestCase {
 		$this->assertSame( array( 3, 1 ), $this->get_queue() );
 	}
 
-	public function test_add_recovers_from_corrupt_queue() {
+	public function test_add_items_rejects_unknown_type_and_sanitizes_values() {
+		$this->assertFalse( fqj_queue_add_items( 'bogus', array( 1 ) ) );
+		$this->assertTrue( fqj_queue_add_items( 'post_type', array( "pa'ge; DROP", 'Page' ) ) );
+		$this->assertSame( 'pagedrop', $this->get_queue_jobs()[0]['item_value'] );
+		$this->assertCount( 2, $this->get_queue_jobs() );
+	}
+
+	public function test_add_handles_large_batches() {
+		fqj_queue_add_posts( range( 1, 450 ) );
+		$this->assertSame( 450, fqj_queue_length() );
+	}
+
+	public function test_readding_a_job_restarts_its_cursor() {
+		global $wpdb;
+		fqj_queue_add_items( 'post_type', array( 'page' ) );
+		$table = fqj_queue_table_name();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		$wpdb->query( "UPDATE {$table} SET job_cursor = 50" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		fqj_queue_add_items( 'post_type', array( 'page' ) );
+		$jobs = $this->get_queue_jobs();
+		$this->assertCount( 1, $jobs );
+		$this->assertSame( '0', $jobs[0]['job_cursor'] );
+	}
+
+	public function test_post_pop_ignores_jobs_and_items_added_meanwhile_survive() {
+		fqj_queue_add_items( 'term', array( 5 ) );
+		fqj_queue_add_posts( array( 1, 2 ) );
+		$this->assertSame( array( 1, 2 ), fqj_queue_pop_posts() );
+		$this->assertSame( 1, fqj_queue_length(), 'The job is still queued.' );
+		$this->assertSame( array(), fqj_queue_pop_posts( 0 ) );
+	}
+
+	public function test_legacy_transient_queue_is_migrated_on_upgrade() {
+		set_transient( 'fqj_invalidate_queue', array( 4, 5, 4 ), DAY_IN_SECONDS );
+		update_option( FQJ_DB_VERSION_OPTION, '1' );
+		update_option( 'fqj_invalidation_log', array( array( 'ts' => 1 ) ), true );
+
+		fqj_maybe_upgrade_db();
+
+		$this->assertSame( array( 4, 5 ), $this->get_queue() );
+		$this->assertFalse( get_transient( 'fqj_invalidate_queue' ) );
+		$this->assertSame( FQJ_DB_VERSION, get_option( FQJ_DB_VERSION_OPTION ) );
+		$this->assertNotContains( 'fqj_invalidation_log', array_keys( wp_load_alloptions( true ) ) );
+	}
+
+	public function test_corrupt_legacy_transient_is_discarded() {
 		set_transient( 'fqj_invalidate_queue', 'garbage' );
-		fqj_queue_add_posts( array( 9 ) );
-		$this->assertSame( array( 9 ), $this->get_queue() );
+		fqj_migrate_legacy_queue();
+		$this->assertSame( 0, fqj_queue_length() );
+		$this->assertFalse( get_transient( 'fqj_invalidate_queue' ) );
+	}
+
+	public function test_cron_event_is_rescheduled_when_missing() {
+		wp_clear_scheduled_hook( 'fqj_process_invalidation_queue' );
+		do_action( 'init' );
+		$this->assertNotFalse( wp_next_scheduled( 'fqj_process_invalidation_queue' ) );
 	}
 
 	public function test_length() {
 		$this->assertSame( 0, fqj_queue_length() );
 		fqj_queue_add_posts( array( 1, 2, 3 ) );
 		$this->assertSame( 3, fqj_queue_length() );
-
-		set_transient( 'fqj_invalidate_queue', 'garbage' );
-		$this->assertSame( 0, fqj_queue_length() );
 	}
 
 	public function test_pop_is_fifo_and_respects_limit() {
@@ -56,7 +105,7 @@ class Test_FQJ_Queue extends FQJ_TestCase {
 		$this->assertSame( array( 10, 20 ), fqj_queue_pop_posts( 2 ) );
 		$this->assertSame( array( 30, 40, 50 ), $this->get_queue() );
 		$this->assertSame( array( 30, 40, 50 ), fqj_queue_pop_posts( 100 ) );
-		$this->assertFalse( get_transient( 'fqj_invalidate_queue' ), 'Emptied queue removes its transient.' );
+		$this->assertSame( 0, fqj_queue_length() );
 	}
 
 	public function test_pop_default_limit_is_100() {
@@ -65,11 +114,7 @@ class Test_FQJ_Queue extends FQJ_TestCase {
 		$this->assertSame( 50, fqj_queue_length() );
 	}
 
-	public function test_pop_on_empty_or_corrupt_queue() {
-		$this->assertSame( array(), fqj_queue_pop_posts() );
-		set_transient( 'fqj_invalidate_queue', 'garbage' );
-		$this->assertSame( array(), fqj_queue_pop_posts() );
-		set_transient( 'fqj_invalidate_queue', array() );
+	public function test_pop_on_empty_queue() {
 		$this->assertSame( array(), fqj_queue_pop_posts() );
 	}
 
@@ -123,11 +168,89 @@ class Test_FQJ_Queue extends FQJ_TestCase {
 		$this->assertSame( array( 1, 2 ), $log[0]['sample'] );
 	}
 
-	public function test_cron_worker_logs_empty_run() {
+	public function test_empty_run_updates_last_run_but_not_the_log() {
 		fqj_process_invalidation_queue_cron();
-		$log = get_option( 'fqj_invalidation_log' );
-		$this->assertSame( 0, $log[0]['processed'] );
+		$this->assertFalse( get_option( 'fqj_invalidation_log' ) );
 		$this->assertNotEmpty( get_option( 'fqj_last_queue_run' ) );
+
+		fqj_process_invalidation_queue_now();
+		$this->assertFalse( get_option( 'fqj_invalidation_log' ) );
+	}
+
+	public function test_log_options_are_not_autoloaded() {
+		fqj_log_invalidation_run( 1, array( 1 ) );
+		$autoloaded = wp_load_alloptions( true );
+		$this->assertArrayNotHasKey( 'fqj_invalidation_log', $autoloaded );
+		$this->assertArrayNotHasKey( 'fqj_last_queue_run', $autoloaded );
+
+		fqj_log_invalidation_run( 2, array( 1 ) );
+		$autoloaded = wp_load_alloptions( true );
+		$this->assertArrayNotHasKey( 'fqj_invalidation_log', $autoloaded );
+		$this->assertArrayNotHasKey( 'fqj_last_queue_run', $autoloaded );
+	}
+
+	public function test_post_type_job_expands_incrementally_with_cursor() {
+		update_option( FQJ_OPTION_KEY, array( 'batch_size' => 2 ) );
+		$pages = self::factory()->post->create_many( 5, array( 'post_type' => 'page' ) );
+		$draft = self::factory()->post->create(
+			array(
+				'post_type'   => 'page',
+				'post_status' => 'draft',
+			)
+		);
+		$other = self::factory()->post->create();
+		foreach ( array_merge( $pages, array( $draft, $other ) ) as $id ) {
+			set_transient( fqj_cache_key( $id ), 'cached' );
+		}
+		fqj_queue_add_items( 'post_type', array( 'page' ) );
+
+		$this->assertSame( 2, fqj_process_invalidation_queue_now() );
+		$this->assertFalse( get_transient( fqj_cache_key( $pages[0] ) ) );
+		$this->assertFalse( get_transient( fqj_cache_key( $pages[1] ) ) );
+		$this->assertSame( 'cached', get_transient( fqj_cache_key( $pages[2] ) ) );
+		$this->assertSame( (string) $pages[1], $this->get_queue_jobs()[0]['job_cursor'] );
+
+		$this->assertSame( 2, fqj_process_invalidation_queue_now() );
+		$this->assertSame( 1, fqj_process_invalidation_queue_now() );
+		$this->assertSame( 0, fqj_queue_length(), 'A short batch means the job is exhausted and removed.' );
+		$this->assertSame( 'cached', get_transient( fqj_cache_key( $draft ) ) );
+		$this->assertSame( 'cached', get_transient( fqj_cache_key( $other ) ) );
+	}
+
+	public function test_term_job_expands_published_tagged_posts_and_finishes() {
+		update_option( FQJ_OPTION_KEY, array( 'batch_size' => 10 ) );
+		$term   = self::factory()->category->create();
+		$tagged = self::factory()->post->create_many( 3 );
+		$draft  = self::factory()->post->create( array( 'post_status' => 'draft' ) );
+		$other  = self::factory()->post->create();
+		foreach ( array_merge( $tagged, array( $draft ) ) as $id ) {
+			wp_set_post_categories( $id, array( $term ) );
+		}
+		foreach ( array_merge( $tagged, array( $draft, $other ) ) as $id ) {
+			set_transient( fqj_cache_key( $id ), 'cached' );
+		}
+		fqj_queue_add_items( 'term', array( $term, 999999 ) );
+
+		$this->assertSame( 3, fqj_process_invalidation_queue_now() );
+
+		foreach ( $tagged as $id ) {
+			$this->assertFalse( get_transient( fqj_cache_key( $id ) ) );
+		}
+		$this->assertSame( 'cached', get_transient( fqj_cache_key( $draft ) ) );
+		$this->assertSame( 'cached', get_transient( fqj_cache_key( $other ) ) );
+		$this->assertSame( 0, fqj_queue_length(), 'Finished and missing-term jobs are removed.' );
+		$this->assertSame( 3, get_option( 'fqj_invalidation_log' )[0]['processed'] );
+	}
+
+	public function test_posts_are_processed_before_jobs_within_budget() {
+		update_option( FQJ_OPTION_KEY, array( 'batch_size' => 3 ) );
+		$pages = self::factory()->post->create_many( 4, array( 'post_type' => 'page' ) );
+		fqj_queue_add_items( 'post_type', array( 'page' ) );
+		fqj_queue_add_posts( array( 900, 901 ) );
+
+		$this->assertSame( 3, fqj_process_invalidation_queue_now() );
+		$this->assertSame( (string) $pages[0], $this->get_queue_jobs()[0]['job_cursor'] );
+		$this->assertSame( array(), $this->get_queue() );
 	}
 
 	public function test_cron_worker_defaults_batch_size_without_settings() {
@@ -150,8 +273,7 @@ class Test_FQJ_Queue extends FQJ_TestCase {
 		$this->assertSame( 0, fqj_process_invalidation_queue_now() );
 
 		$log = get_option( 'fqj_invalidation_log' );
-		$this->assertCount( 3, $log );
-		$this->assertSame( 0, $log[0]['processed'] );
+		$this->assertCount( 2, $log, 'The empty run is not logged.' );
 	}
 
 	public function test_process_now_uses_batch_size_when_no_limit() {

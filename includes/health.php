@@ -90,7 +90,7 @@ function fqj_render_health_page() {
 		<?php
 		echo $last_run_ts
 			? esc_html(
-				date_i18n( 'Y-m-d H:i:s', $last_run_ts ) .
+				wp_date( 'Y-m-d H:i:s', (int) $last_run_ts ) .
 				' (' . human_time_diff( $last_run_ts, time() ) . ' ago)'
 			)
 			: 'Never';
@@ -127,7 +127,7 @@ function fqj_render_health_page() {
 						echo '<tr>';
 						echo '<td>' . esc_html(
 							$ts
-								? date_i18n( 'Y-m-d H:i:s', $ts ) . ' (' . human_time_diff( $ts, time() ) . ' ago)'
+								? wp_date( 'Y-m-d H:i:s', $ts ) . ' (' . human_time_diff( $ts, time() ) . ' ago)'
 								: 'n/a'
 						) . '</td>';
 						echo '<td>' . esc_html( $processed ) . '</td>';
@@ -142,8 +142,8 @@ function fqj_render_health_page() {
 		<h2>Notes</h2>
 		<ul>
 			<li>
-				Queue is stored transiently; if you need persistent audit trail,
-				consider enabling a custom queue table (we can add that).
+				The queue is stored in a database table, so pending items survive cache flushes and restarts.
+				Post type and term mappings are expanded into posts gradually by the worker.
 			</li>
 			<li>
 				If WP-Cron is disabled on your host, ensure real cron triggers
@@ -167,13 +167,15 @@ function fqj_ajax_process_queue_now() {
 	$limit     = isset( $_POST['limit'] ) ? intval( $_POST['limit'] ) : null;
 	$processed = fqj_process_invalidation_queue_now( $limit );
 	$queue_len = fqj_queue_length();
-	$last_run  = get_option( 'fqj_last_queue_run', 0 );
+	$last_run  = (int) get_option( 'fqj_last_queue_run', 0 );
 
 	wp_send_json_success(
 		array(
-			'processed' => $processed,
-			'queue_len' => $queue_len,
-			'last_run'  => $last_run,
+			'processed'      => $processed,
+			'queue_len'      => $queue_len,
+			'last_run'       => $last_run,
+			// Formatted on the server so the site's timezone and date settings apply.
+			'last_run_human' => $last_run ? wp_date( 'Y-m-d H:i:s', $last_run ) . ' (' . human_time_diff( $last_run, time() ) . ' ago)' : '',
 		)
 	);
 }
@@ -200,7 +202,7 @@ function fqj_ajax_clear_invalidation_log() {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		wp_send_json_error( array( 'message' => 'Permission denied' ), 403 );
 	}
-	update_option( 'fqj_invalidation_log', array() );
+	fqj_update_option_no_autoload( 'fqj_invalidation_log', array() );
 	wp_send_json_success( array( 'message' => 'Cleared' ) );
 }
 add_action( 'wp_ajax_fqj_clear_invalidation_log', 'fqj_ajax_clear_invalidation_log' );

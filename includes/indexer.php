@@ -47,12 +47,24 @@ function fqj_create_table() {
       KEY idx_mapping_value (mapping_value(191))
     ) {$charset_collate};";
 
+	// Invalidation queue: single posts plus post_type/term jobs that the worker expands from job_cursor.
+	$queue_table = fqj_queue_table_name();
+	$queue_sql   = "CREATE TABLE {$queue_table} (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      item_type VARCHAR(32) NOT NULL,
+      item_value VARCHAR(191) NOT NULL,
+      job_cursor BIGINT UNSIGNED NOT NULL DEFAULT 0,
+      PRIMARY KEY  (id),
+      UNIQUE KEY uniq_item (item_type,item_value)
+    ) {$charset_collate};";
+
 	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 	dbDelta( $sql );
+	dbDelta( $queue_sql );
 
 	// Record the version only if the table exists, so a failed run retries on the next request.
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-	if ( $wpdb->get_results( "DESCRIBE {$table_name}" ) ) {
+	if ( $wpdb->get_results( "DESCRIBE {$table_name}" ) && $wpdb->get_results( "DESCRIBE {$queue_table}" ) ) {
 		update_option( FQJ_DB_VERSION_OPTION, FQJ_DB_VERSION );
 	}
 }
@@ -65,6 +77,11 @@ function fqj_create_table() {
 function fqj_maybe_upgrade_db() {
 	if ( version_compare( (string) get_option( FQJ_DB_VERSION_OPTION, '0' ), FQJ_DB_VERSION, '<' ) ) {
 		fqj_create_table();
+		// Carry over data from older versions (no-ops on fresh installs).
+		if ( version_compare( (string) get_option( FQJ_DB_VERSION_OPTION, '0' ), FQJ_DB_VERSION, '>=' ) ) {
+			fqj_migrate_legacy_queue();
+			fqj_unautoload_options();
+		}
 	}
 }
 add_action( 'plugins_loaded', 'fqj_maybe_upgrade_db' );
@@ -305,8 +322,9 @@ function fqj_rebuild_index_for_faq( $faq_id, $enqueue = true ) {
 }
 
 /**
- * Resolve mappings to post IDs and enqueue them for invalidation using the background queue.
- * This function does not synchronously delete transients; it pushes affected IDs to the queue.
+ * Enqueue the posts affected by mappings for invalidation using the background queue.
+ * This function does not synchronously delete transients or enumerate posts; it pushes post IDs and
+ * post_type/term jobs to the queue.
  *
  * @param array $mappings The mappings array.
  */
@@ -343,83 +361,11 @@ function fqj_enqueue_invalidation_for_mappings( $mappings ) {
 		}
 	}
 
-	// Enqueue direct post IDs.
-	if ( ! empty( $post_ids_to_enqueue ) ) {
-		fqj_queue_add_posts( $post_ids_to_enqueue );
-	}
-
-	// Enqueue posts of post types (in batches, gather ids).
-	if ( ! empty( $post_types_to_process ) ) {
-		$opts       = get_option( FQJ_OPTION_KEY );
-		$batch_size = isset( $opts['batch_size'] ) ? intval( $opts['batch_size'] ) : 500;
-
-		foreach ( $post_types_to_process as $pt ) {
-			$paged = 1;
-			while ( true ) {
-				$args = array(
-					'post_type'      => $pt,
-					'post_status'    => 'any',
-					'posts_per_page' => $batch_size,
-					'paged'          => $paged,
-					'orderby'        => 'ID',
-					'order'          => 'ASC',
-					'fields'         => 'ids',
-				);
-				$q    = new WP_Query( $args );
-				if ( ! $q->have_posts() ) {
-					break;
-				}
-				fqj_queue_add_posts( $q->posts );
-				wp_reset_postdata();
-				if ( count( $q->posts ) < $batch_size ) {
-					break;
-				}
-				++$paged;
-			}
-		}
-	}
-
-	// Enqueue posts tagged with terms.
-	if ( ! empty( $terms_to_process ) ) {
-		$opts       = get_option( FQJ_OPTION_KEY );
-		$batch_size = isset( $opts['batch_size'] ) ? intval( $opts['batch_size'] ) : 500;
-
-		foreach ( $terms_to_process as $term_id ) {
-			$term = get_term( $term_id );
-			if ( ! $term || is_wp_error( $term ) ) {
-				continue;
-			}
-
-			$paged = 1;
-			while ( true ) {
-				$args = array(
-					'post_type'      => 'any',
-					'posts_per_page' => $batch_size,
-					'paged'          => $paged,
-					'orderby'        => 'ID',
-					'order'          => 'ASC',
-					'fields'         => 'ids',
-					'tax_query'      => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query
-						array(
-							'taxonomy' => $term->taxonomy,
-							'terms'    => $term_id,
-							'field'    => 'term_id',
-						),
-					),
-				);
-				$q    = new WP_Query( $args );
-				if ( ! $q->have_posts() ) {
-					break;
-				}
-				fqj_queue_add_posts( $q->posts );
-				wp_reset_postdata();
-				if ( count( $q->posts ) < $batch_size ) {
-					break;
-				}
-				++$paged;
-			}
-		}
-	}
+	// Direct post IDs go straight in; post type and term mappings become jobs that the queue worker
+	// expands incrementally, so saving never enumerates every matching post.
+	fqj_queue_add_posts( $post_ids_to_enqueue );
+	fqj_queue_add_items( 'post_type', $post_types_to_process );
+	fqj_queue_add_items( 'term', $terms_to_process );
 
 	// For global, do a full purge (we can't reasonably enqueue all posts efficiently here).
 	if ( $must_purge_all ) {

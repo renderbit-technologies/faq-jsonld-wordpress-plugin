@@ -18,7 +18,6 @@ abstract class FQJ_TestCase extends WP_UnitTestCase {
 	public function set_up() {
 		parent::set_up();
 		$this->set_permalink_structure( '/%postname%/' );
-		delete_transient( 'fqj_invalidate_queue' );
 	}
 
 	/**
@@ -75,9 +74,22 @@ abstract class FQJ_TestCase extends WP_UnitTestCase {
 	 * @return array
 	 */
 	protected function get_queue() {
-		$queue = get_transient( 'fqj_invalidate_queue' );
+		global $wpdb;
+		$table = fqj_queue_table_name();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		return array_map( 'intval', $wpdb->get_col( "SELECT item_value FROM {$table} WHERE item_type = 'post' ORDER BY id" ) );
+	}
 
-		return is_array( $queue ) ? $queue : array();
+	/**
+	 * Queued post_type/term jobs as type, value and cursor.
+	 *
+	 * @return array
+	 */
+	protected function get_queue_jobs() {
+		global $wpdb;
+		$table = fqj_queue_table_name();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		return $wpdb->get_results( "SELECT item_type, item_value, job_cursor FROM {$table} WHERE item_type <> 'post' ORDER BY id", ARRAY_A );
 	}
 
 	/**

@@ -12,8 +12,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 // phpcs:disable PSR1.Files.SideEffects
 
 /**
- * Background invalidation queue using transients + WP-Cron
- * Now includes logging: last run timestamp and an invalidation history log.
+ * Background invalidation queue (custom table) + WP-Cron
+ * Includes logging: last run timestamp and an invalidation history log.
  */
 
 /**
@@ -36,101 +36,215 @@ function fqj_add_cron_interval( $schedules ) {
 add_filter( 'cron_schedules', 'fqj_add_cron_interval' );
 
 /**
+ * Queue table name, resolved at call time so it follows the current blog on multisite.
+ *
+ * @return string
+ */
+function fqj_queue_table_name() {
+	global $wpdb;
+
+	return $wpdb->prefix . 'fqj_queue';
+}
+
+/**
+ * Item types the queue accepts. 'post' items are single posts; the others are jobs that the worker expands
+ * incrementally into posts, using the row's job_cursor.
+ *
+ * @return string[]
+ */
+function fqj_queue_job_types() {
+	return array( 'post_type', 'term' );
+}
+
+/**
+ * Insert queue items. Duplicates are ignored for posts. Re-adding a job restarts it from the beginning,
+ * because posts below its cursor may have been added since it started.
+ *
+ * @param string $type   Item type: post, post_type or term.
+ * @param array  $values Item values (post IDs, post type names or term IDs).
+ * @return bool True when at least one valid value was submitted.
+ */
+function fqj_queue_add_items( $type, $values ) {
+	global $wpdb;
+
+	$is_job = in_array( $type, fqj_queue_job_types(), true );
+	if ( ! $is_job && 'post' !== $type ) {
+		return false;
+	}
+
+	$clean = array();
+	foreach ( (array) $values as $value ) {
+		if ( 'post_type' === $type ) {
+			$value = sanitize_key( $value );
+		} else {
+			$value = (string) absint( $value );
+		}
+		if ( '' !== $value && '0' !== $value ) {
+			$clean[ $value ] = $value;
+		}
+	}
+	if ( empty( $clean ) ) {
+		return false;
+	}
+
+	$table = fqj_queue_table_name();
+	foreach ( array_chunk( array_values( $clean ), 200 ) as $chunk ) {
+		$placeholders = implode( ',', array_fill( 0, count( $chunk ), '(%s,%s)' ) );
+		$args         = array();
+		foreach ( $chunk as $value ) {
+			$args[] = $type;
+			$args[] = $value;
+		}
+		$suffix = $is_job ? ' ON DUPLICATE KEY UPDATE job_cursor = 0' : '';
+		$insert = $is_job ? 'INSERT' : 'INSERT IGNORE';
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
+		$wpdb->query(
+			$wpdb->prepare( "{$insert} INTO {$table} (item_type, item_value) VALUES {$placeholders}{$suffix}", $args )
+		);
+		// phpcs:enable
+	}
+
+	return true;
+}
+
+/**
  * Enqueue posts to the invalidation queue.
  *
  * @param array $post_ids Array of post IDs.
  * @return bool True on success.
  */
 function fqj_queue_add_posts( $post_ids ) {
-	if ( empty( $post_ids ) ) {
-		return false;
-	}
-
-	$post_ids = array_map( 'intval', $post_ids );
-	$post_ids = array_filter( $post_ids );
-
-	if ( empty( $post_ids ) ) {
-		return false;
-	}
-
-	$key      = 'fqj_invalidate_queue';
-	$existing = get_transient( $key );
-	$queue    = array();
-	if ( false !== $existing ) {
-		$queue = maybe_unserialize( $existing );
-		if ( ! is_array( $queue ) ) {
-			$queue = array();
-		}
-	}
-
-	$queue_map = array_flip( $queue );
-	foreach ( $post_ids as $pid ) {
-		if ( ! isset( $queue_map[ $pid ] ) ) {
-			$queue[]           = $pid;
-			$queue_map[ $pid ] = true;
-		}
-	}
-
-	set_transient( $key, $queue, DAY_IN_SECONDS );
-
-	return true;
+	return fqj_queue_add_items( 'post', (array) $post_ids );
 }
 
 /**
  * Pop up to $limit posts from queue (returns array of post IDs popped). FIFO.
  *
+ * Rows are deleted by id after being read, so items added meanwhile are never lost.
+ *
  * @param int $limit Max items to pop.
  * @return array
  */
 function fqj_queue_pop_posts( $limit = 100 ) {
-	$key      = 'fqj_invalidate_queue';
-	$existing = get_transient( $key );
-	if ( false === $existing ) {
+	global $wpdb;
+
+	$limit = (int) $limit;
+	if ( $limit <= 0 ) {
 		return array();
 	}
 
-	$queue = maybe_unserialize( $existing );
-	if ( ! is_array( $queue ) || empty( $queue ) ) {
+	$table = fqj_queue_table_name();
+	// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	$rows = $wpdb->get_results(
+		$wpdb->prepare( "SELECT id, item_value FROM {$table} WHERE item_type = 'post' ORDER BY id ASC LIMIT %d", $limit ),
+		ARRAY_A
+	);
+	if ( empty( $rows ) ) {
 		return array();
 	}
 
-	$pop = array_splice( $queue, 0, intval( $limit ) );
-	if ( empty( $queue ) ) {
-		delete_transient( $key );
-	} else {
-		set_transient( $key, $queue, DAY_IN_SECONDS );
-	}
+	$row_ids      = array_map( 'intval', wp_list_pluck( $rows, 'id' ) );
+	$placeholders = implode( ',', array_fill( 0, count( $row_ids ), '%d' ) );
+	// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare
+	$wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE id IN ({$placeholders})", $row_ids ) );
+	// phpcs:enable
 
-	return array_map( 'intval', $pop );
+	return array_map( 'intval', wp_list_pluck( $rows, 'item_value' ) );
 }
 
 /**
- * Get the approximate queue length
+ * Get the queue length (pending posts plus unfinished jobs).
+ *
+ * @return int
  */
 function fqj_queue_length() {
-	$key      = 'fqj_invalidate_queue';
-	$existing = get_transient( $key );
+	global $wpdb;
+
+	$table = fqj_queue_table_name();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" );
+}
+
+/**
+ * Move a leftover pre-table queue (transient) into the queue table, then delete the transient.
+ */
+function fqj_migrate_legacy_queue() {
+	$existing = get_transient( 'fqj_invalidate_queue' );
 	if ( false === $existing ) {
-		return 0;
-	}
-	$queue = maybe_unserialize( $existing );
-	if ( ! is_array( $queue ) ) {
-		return 0;
+		return;
 	}
 
-	return count( $queue );
+	$queue = maybe_unserialize( $existing );
+	if ( is_array( $queue ) && ! empty( $queue ) ) {
+		fqj_queue_add_posts( $queue );
+	}
+	delete_transient( 'fqj_invalidate_queue' );
 }
+
+/**
+ * Save an option without autoload (the log and last-run timestamp are only read on the Health page).
+ *
+ * Note that update_option() only applies the autoload argument to existing rows from WP 6.4, so an already
+ * autoloaded row is switched explicitly (see fqj_unautoload_options()).
+ *
+ * @param string $name  Option name.
+ * @param mixed  $value Value.
+ */
+function fqj_update_option_no_autoload( $name, $value ) {
+	if ( false === get_option( $name ) ) {
+		add_option( $name, $value, '', false );
+		return;
+	}
+	update_option( $name, $value, false );
+}
+
+/**
+ * Turn autoload off for the plugin's rarely read options, whatever the WP version.
+ */
+function fqj_unautoload_options() {
+	global $wpdb;
+
+	foreach ( array( 'fqj_invalidation_log', 'fqj_last_queue_run' ) as $name ) {
+		if ( false === get_option( $name ) ) {
+			continue;
+		}
+		if ( function_exists( 'wp_set_option_autoload' ) ) {
+			wp_set_option_autoload( $name, false );
+			continue;
+		}
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->update( $wpdb->options, array( 'autoload' => 'no' ), array( 'option_name' => $name ) );
+		wp_cache_delete( 'alloptions', 'options' );
+		wp_cache_delete( $name, 'options' );
+	}
+}
+
+/**
+ * Make sure the queue worker is scheduled. Cron events can be lost (cron option rewrites, migrations).
+ */
+function fqj_ensure_cron_scheduled() {
+	if ( ! wp_next_scheduled( 'fqj_process_invalidation_queue' ) ) {
+		wp_schedule_event( time() + 60, 'fqj_five_minutes', 'fqj_process_invalidation_queue' );
+	}
+}
+add_action( 'init', 'fqj_ensure_cron_scheduled' );
 
 /**
  * Log an invalidation worker run.
  * Stores an entry into option 'fqj_invalidation_log' as array of entries:
  * [ [ 'ts' => 12345, 'processed' => n, 'sample' => [ids] ], ... ]
- * Keeps only last 200 entries (configurable later).
+ * Keeps only last 200 entries (configurable later). A run that processed nothing only updates the last-run time.
  *
  * @param int   $processed_count Number processed.
  * @param array $sample_ids Sample IDs.
  */
 function fqj_log_invalidation_run( $processed_count, $sample_ids = array() ) {
+	$processed_count = intval( $processed_count );
+	fqj_update_option_no_autoload( 'fqj_last_queue_run', time() );
+	if ( $processed_count <= 0 ) {
+		return;
+	}
+
 	$opt_name = 'fqj_invalidation_log';
 	$log      = get_option( $opt_name, array() );
 	if ( ! is_array( $log ) ) {
@@ -139,7 +253,7 @@ function fqj_log_invalidation_run( $processed_count, $sample_ids = array() ) {
 
 	$entry = array(
 		'ts'        => time(),
-		'processed' => intval( $processed_count ),
+		'processed' => $processed_count,
 		'sample'    => array_slice( array_map( 'intval', $sample_ids ), 0, 20 ),
 	);
 
@@ -151,8 +265,119 @@ function fqj_log_invalidation_run( $processed_count, $sample_ids = array() ) {
 		$log = array_slice( $log, 0, $max );
 	}
 
-	update_option( $opt_name, $log );
-	update_option( 'fqj_last_queue_run', time() );
+	fqj_update_option_no_autoload( $opt_name, $log );
+}
+
+/**
+ * Expand queued post_type/term jobs into per-post cache deletions, within a post budget.
+ *
+ * Each job walks post IDs in ascending order from its stored cursor and is deleted once exhausted. Only
+ * published posts are considered, since only those are viewable (and cached) publicly.
+ *
+ * @param int $budget Maximum number of posts to process.
+ * @return int[] IDs processed.
+ */
+function fqj_queue_process_jobs( $budget ) {
+	global $wpdb;
+
+	$done  = array();
+	$table = fqj_queue_table_name();
+
+	$done_count = 0;
+	while ( $done_count < $budget ) {
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$job = $wpdb->get_row(
+			"SELECT id, item_type, item_value, job_cursor FROM {$table} WHERE item_type IN ('post_type','term') ORDER BY id ASC LIMIT 1",
+			ARRAY_A
+		);
+		// phpcs:enable
+		if ( ! $job ) {
+			break;
+		}
+
+		$remaining = $budget - $done_count;
+		$cursor    = (int) $job['job_cursor'];
+		$ids       = array();
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( 'post_type' === $job['item_type'] ) {
+			$ids = $wpdb->get_col(
+				$wpdb->prepare(
+					"SELECT ID FROM {$wpdb->posts} WHERE post_type = %s AND post_status = 'publish' AND ID > %d ORDER BY ID ASC LIMIT %d",
+					$job['item_value'],
+					$cursor,
+					$remaining
+				)
+			);
+		} else {
+			$term = get_term( (int) $job['item_value'] );
+			if ( $term && ! is_wp_error( $term ) ) {
+				$ids = $wpdb->get_col(
+					$wpdb->prepare(
+						"SELECT p.ID FROM {$wpdb->posts} p INNER JOIN {$wpdb->term_relationships} tr ON tr.object_id = p.ID
+						WHERE tr.term_taxonomy_id = %d AND p.post_status = 'publish' AND p.ID > %d ORDER BY p.ID ASC LIMIT %d",
+						$term->term_taxonomy_id,
+						$cursor,
+						$remaining
+					)
+				);
+			}
+		}
+		// phpcs:enable
+
+		$ids = array_map( 'intval', (array) $ids );
+		foreach ( $ids as $pid ) {
+			delete_transient( fqj_cache_key( $pid ) );
+		}
+		$done       = array_merge( $done, $ids );
+		$done_count = count( $done );
+
+		// The cursor guard keeps a concurrent re-add (which resets the cursor to 0) from being overwritten.
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		if ( count( $ids ) < $remaining ) {
+			$wpdb->delete(
+				$table,
+				array(
+					'id'         => (int) $job['id'],
+					'job_cursor' => $cursor,
+				),
+				array( '%d', '%d' )
+			);
+		} else {
+			$wpdb->update(
+				$table,
+				array( 'job_cursor' => end( $ids ) ),
+				array(
+					'id'         => (int) $job['id'],
+					'job_cursor' => $cursor,
+				),
+				array( '%d' ),
+				array( '%d', '%d' )
+			);
+		}
+		// phpcs:enable
+	}
+
+	return $done;
+}
+
+/**
+ * Process one batch: queued posts first, then job expansion with the remaining budget.
+ *
+ * @param int $limit Maximum posts to process.
+ * @return int[] Post IDs processed.
+ */
+function fqj_queue_process_batch( $limit ) {
+	$limit = max( 1, (int) $limit );
+	$ids   = fqj_queue_pop_posts( $limit );
+	foreach ( $ids as $pid ) {
+		delete_transient( fqj_cache_key( $pid ) );
+	}
+	if ( count( $ids ) < $limit ) {
+		$ids = array_merge( $ids, fqj_queue_process_jobs( $limit - count( $ids ) ) );
+	}
+
+	return $ids;
 }
 
 /**
@@ -162,25 +387,8 @@ function fqj_process_invalidation_queue_cron() {
 	$opts       = get_option( FQJ_OPTION_KEY );
 	$batch_size = isset( $opts['batch_size'] ) ? intval( $opts['batch_size'] ) : 500;
 
-	$to_process = fqj_queue_pop_posts( $batch_size );
-	if ( empty( $to_process ) ) {
-		// still record last run time.
-		update_option( 'fqj_last_queue_run', time() );
-		fqj_log_invalidation_run( 0, array() );
-
-		return;
-	}
-
-	foreach ( $to_process as $pid ) {
-		$pid = intval( $pid );
-		if ( $pid <= 0 ) {
-			continue;
-		}
-		delete_transient( fqj_cache_key( $pid ) );
-	}
-
-	// log and save last run.
-	fqj_log_invalidation_run( count( $to_process ), array_slice( $to_process, 0, 20 ) );
+	$processed = fqj_queue_process_batch( $batch_size );
+	fqj_log_invalidation_run( count( $processed ), array_slice( $processed, 0, 20 ) );
 }
 add_action( 'fqj_process_invalidation_queue', 'fqj_process_invalidation_queue_cron' );
 
@@ -196,25 +404,10 @@ function fqj_process_invalidation_queue_now( $limit = null ) {
 	$batch_size = isset( $opts['batch_size'] ) ? intval( $opts['batch_size'] ) : 500;
 	$limit      = $limit ? intval( $limit ) : $batch_size;
 
-	$processed = 0;
-	$sample    = array();
+	$processed = fqj_queue_process_batch( $limit );
+	fqj_log_invalidation_run( count( $processed ), array_slice( $processed, 0, 20 ) );
 
-	// Pop and process until we hit the limit once.
-	$pop = fqj_queue_pop_posts( $limit );
-	if ( ! empty( $pop ) ) {
-		foreach ( $pop as $pid ) {
-			delete_transient( fqj_cache_key( intval( $pid ) ) );
-			++$processed;
-			if ( count( $sample ) < 20 ) {
-				$sample[] = intval( $pid );
-			}
-		}
-	}
-
-	// log run.
-	fqj_log_invalidation_run( $processed, $sample );
-
-	return $processed;
+	return count( $processed );
 }
 
 /**
@@ -228,7 +421,7 @@ function fqj_admin_queue_notice() {
 	if ( $len > 0 ) {
 		printf(
 			'<div class="notice notice-info"><p>FAQ JSON-LD queue: <strong>%d</strong> ' .
-			'posts pending invalidation. The background worker (WP-Cron) will process them in batches.</p></div>',
+			'items pending invalidation. The background worker (WP-Cron) will process them in batches.</p></div>',
 			intval( $len )
 		);
 	}

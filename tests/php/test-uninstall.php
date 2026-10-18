@@ -56,12 +56,15 @@ class Test_FQJ_Uninstall extends FQJ_TestCase {
 		$this->assertSame( 'y', get_transient( 'keep_me' ) );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		$this->assertNull( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', fqj_table_name() ) ) );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		$this->assertNull( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', fqj_queue_table_name() ) ) );
 	}
 
 	public function test_uninstall_removes_log_queue_events_and_meta_but_keeps_faqs() {
 		update_option( 'fqj_invalidation_log', array( array( 'processed' => 1 ) ) );
 		update_option( 'fqj_last_queue_run', time() );
 		set_transient( 'fqj_invalidate_queue', array( 1 ) );
+		fqj_queue_add_posts( array( 1 ) );
 		set_transient( 'fqj_rejected_urls_1_2', array( 'bad' ), 600 );
 		wp_schedule_event( time() + 60, 'hourly', 'fqj_process_invalidation_queue' );
 		wp_schedule_single_event( time() + 60, 'fqj_data_migration' );
@@ -87,7 +90,12 @@ class Test_FQJ_Uninstall extends FQJ_TestCase {
 
 	public function test_uninstall_deletes_faqs_when_filter_allows() {
 		$faq   = self::factory()->post->create( array( 'post_type' => 'faq_item' ) );
-		$draft = self::factory()->post->create( array( 'post_type' => 'faq_item', 'post_status' => 'draft' ) );
+		$draft = self::factory()->post->create(
+			array(
+				'post_type'   => 'faq_item',
+				'post_status' => 'draft',
+			)
+		);
 		$post  = self::factory()->post->create();
 		update_post_meta( $faq, 'fqj_assoc_type', 'urls' );
 		add_filter( 'fqj_uninstall_delete_faqs', '__return_true' );

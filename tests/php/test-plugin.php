@@ -131,7 +131,7 @@ class Test_FQJ_Plugin extends FQJ_TestCase {
 
 	public function test_table_name_follows_current_blog_prefix() {
 		global $wpdb;
-		$original = $wpdb->prefix;
+		$original     = $wpdb->prefix;
 		$wpdb->prefix = 'other_'; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
 		$name         = fqj_table_name();
 		$wpdb->prefix = $original; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited

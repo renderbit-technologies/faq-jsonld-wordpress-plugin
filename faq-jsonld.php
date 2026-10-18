@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 define( 'FQJ_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'FQJ_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'FQJ_OPTION_KEY', 'fqj_settings' );
-define( 'FQJ_DB_VERSION', '1' );
+define( 'FQJ_DB_VERSION', '2' );
 define( 'FQJ_DB_VERSION_OPTION', 'fqj_db_version' );
 
 // Data migration version: bump to run a one-time reindex and cache purge on existing sites.
