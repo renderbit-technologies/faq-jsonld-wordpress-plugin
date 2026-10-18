@@ -4,7 +4,7 @@
  * Plugin URI:  https://github.com/renderbit-technologies/faq-jsonld-wordpress-plugin
  * Description: Manage FAQ items as CPT and inject FAQ JSON-LD. Uses a custom mapping table (fast), per-post
  *              transient caching, background invalidation queue (WP-Cron), settings UI and WP-CLI tools.
- * Version:     2.2.0
+ * Version:     3.0.0
  * Requires at least: 6.5
  * Requires PHP: 7.2
  * Author:      Renderbit Technologies
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // phpcs:disable PSR1.Files.SideEffects
 
 // Keep in sync with the Version header above; used to version the plugin's own assets.
-define( 'FQJ_VERSION', '2.2.0' );
+define( 'FQJ_VERSION', '3.0.0' );
 // Upper bound for the invalidation batch size setting.
 define( 'FQJ_MAX_BATCH_SIZE', 5000 );
 define( 'FQJ_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
