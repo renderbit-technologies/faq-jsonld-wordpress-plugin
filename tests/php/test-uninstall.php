@@ -9,8 +9,18 @@
 
 /**
  * Uninstall tests.
+ *
+ * Uninstall must drop the real tables, so the DROP TABLE statements commit the test transaction. Everything a test
+ * creates is therefore removed explicitly in tear_down() and committed.
  */
 class Test_FQJ_Uninstall extends FQJ_TestCase {
+
+	/**
+	 * Posts created by the current test that uninstall keeps.
+	 *
+	 * @var int[]
+	 */
+	private $post_ids = array();
 
 	/**
 	 * The test suite rewrites CREATE/DROP TABLE to temporary tables; uninstall must hit the real one.
@@ -22,11 +32,20 @@ class Test_FQJ_Uninstall extends FQJ_TestCase {
 	}
 
 	/**
-	 * Recreate the real mapping table for the tests that follow.
+	 * Remove committed fixtures and restore the plugin data the way the bootstrap set it up.
 	 */
 	public function tear_down() {
-		fqj_create_table();
+		global $wpdb;
+
 		parent::tear_down();
+
+		fqj_activate();
+		foreach ( $this->post_ids as $post_id ) {
+			wp_delete_post( $post_id, true );
+		}
+		delete_transient( 'keep_me' );
+		$wpdb->query( 'COMMIT' );
+		self::flush_cache();
 	}
 
 	/**
@@ -68,7 +87,8 @@ class Test_FQJ_Uninstall extends FQJ_TestCase {
 		set_transient( 'fqj_rejected_urls_1_2', array( 'bad' ), 600 );
 		wp_schedule_event( time() + 60, 'hourly', 'fqj_process_invalidation_queue' );
 		wp_schedule_single_event( time() + 60, 'fqj_data_migration' );
-		$faq = self::factory()->post->create( array( 'post_type' => 'faq_item' ) );
+		$faq              = self::factory()->post->create( array( 'post_type' => 'faq_item' ) );
+		$this->post_ids[] = $faq;
 		update_post_meta( $faq, 'fqj_assoc_type', 'urls' );
 		update_post_meta( $faq, 'fqj_assoc_data_json', '{}' );
 		update_post_meta( $faq, 'unrelated_meta', 'keep' );
@@ -103,6 +123,7 @@ class Test_FQJ_Uninstall extends FQJ_TestCase {
 			)
 		);
 		$post    = self::factory()->post->create();
+		$this->post_ids[] = $post;
 		update_post_meta( $faq, 'fqj_assoc_type', 'urls' );
 		add_filter( 'fqj_uninstall_delete_faqs', '__return_true' );
 
