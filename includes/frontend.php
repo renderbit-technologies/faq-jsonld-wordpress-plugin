@@ -29,7 +29,7 @@ function fqj_maybe_print_faq_jsonld() {
 	$cache_ttl   = isset( $opts['cache_ttl'] ) ? intval( $opts['cache_ttl'] ) : 12 * HOUR_IN_SECONDS;
 	$output_type = isset( $opts['output_type'] ) ? $opts['output_type'] : 'faqsection';
 
-	$transient_key = 'fqj_faq_json_' . $current_id;
+	$transient_key = fqj_cache_key( $current_id );
 	$cached        = get_transient( $transient_key );
 	if ( false !== $cached ) {
 		if ( '__FQJ_EMPTY__' === $cached ) {
@@ -99,7 +99,7 @@ function fqj_maybe_print_faq_jsonld() {
 
 	// Query mapping table for matching faq_ids.
 	global $wpdb;
-	$table = FQJ_DB_TABLE;
+	$table = fqj_table_name();
 
 	// Build WHERE clauses for each candidate.
 	$where_clauses = array();

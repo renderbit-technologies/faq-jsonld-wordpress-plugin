@@ -60,20 +60,22 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 		$faq = self::factory()->post->create( array( 'post_type' => 'faq_item' ) );
 		update_post_meta( $faq, 'fqj_assoc_data_json', wp_json_encode( array( 'posts' => array( 5 ) ) ) );
 		fqj_insert_mappings( $faq, array( array( 'type' => 'url', 'value' => 'https://example.com/?bad' ) ) );
-		set_transient( 'fqj_faq_json_5', 'stale', 600 );
+		$stale_key = fqj_cache_key( 5 );
+		set_transient( $stale_key, 'stale', 600 );
 		delete_option( FQJ_DATA_VERSION_OPTION );
 
 		fqj_run_data_migration();
 
 		$this->assertSame( FQJ_DATA_VERSION, get_option( FQJ_DATA_VERSION_OPTION ) );
-		$this->assertFalse( get_transient( 'fqj_faq_json_5' ) );
+		$this->assertFalse( get_transient( $stale_key ) );
+		$this->assertNotSame( $stale_key, fqj_cache_key( 5 ) );
 		global $wpdb;
-		$rows = $wpdb->get_col( $wpdb->prepare( 'SELECT mapping_type FROM ' . FQJ_DB_TABLE . ' WHERE faq_id = %d', $faq ) );
+		$rows = $wpdb->get_col( $wpdb->prepare( 'SELECT mapping_type FROM ' . fqj_table_name() . ' WHERE faq_id = %d', $faq ) );
 		$this->assertSame( array( 'post' ), $rows );
 
-		set_transient( 'fqj_faq_json_5', 'fresh', 600 );
+		set_transient( fqj_cache_key( 5 ), 'fresh', 600 );
 		fqj_run_data_migration();
-		$this->assertSame( 'fresh', get_transient( 'fqj_faq_json_5' ) );
+		$this->assertSame( 'fresh', get_transient( fqj_cache_key( 5 ) ) );
 	}
 
 	public function test_data_migration_reindexes_trashed_faqs() {
@@ -84,7 +86,7 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 		fqj_run_data_migration();
 
 		global $wpdb;
-		$count = $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . FQJ_DB_TABLE . ' WHERE faq_id = %d', $faq ) );
+		$count = $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . fqj_table_name() . ' WHERE faq_id = %d', $faq ) );
 		$this->assertSame( '0', (string) $count );
 	}
 
@@ -448,8 +450,10 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 	}
 
 	public function test_enqueue_global_mapping_purges_all_faq_transients() {
-		set_transient( 'fqj_faq_json_1', 'x' );
-		set_transient( 'fqj_faq_json_2', 'y' );
+		$key_1 = fqj_cache_key( 1 );
+		$key_2 = fqj_cache_key( 2 );
+		set_transient( $key_1, 'x' );
+		set_transient( $key_2, 'y' );
 		set_transient( 'unrelated_transient', 'z' );
 
 		fqj_enqueue_invalidation_for_mappings(
@@ -461,8 +465,9 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 			)
 		);
 
-		$this->assertFalse( get_transient( 'fqj_faq_json_1' ) );
-		$this->assertFalse( get_transient( 'fqj_faq_json_2' ) );
+		$this->assertFalse( get_transient( $key_1 ) );
+		$this->assertFalse( get_transient( $key_2 ) );
+		$this->assertNotSame( $key_1, fqj_cache_key( 1 ) );
 		$this->assertSame( 'z', get_transient( 'unrelated_transient' ) );
 	}
 

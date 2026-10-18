@@ -12,7 +12,7 @@ class Test_FQJ_Plugin extends FQJ_TestCase {
 
 	public function test_constants_are_defined() {
 		global $wpdb;
-		$this->assertSame( $wpdb->prefix . 'fqj_mappings', FQJ_DB_TABLE );
+		$this->assertSame( $wpdb->prefix . 'fqj_mappings', fqj_table_name() );
 		$this->assertSame( 'fqj_settings', FQJ_OPTION_KEY );
 		$this->assertStringEndsWith( '/', FQJ_PLUGIN_DIR );
 		$this->assertFileExists( FQJ_PLUGIN_DIR . 'faq-jsonld.php' );
@@ -33,7 +33,7 @@ class Test_FQJ_Plugin extends FQJ_TestCase {
 
 	public function test_activation_creates_table() {
 		global $wpdb;
-		$table = FQJ_DB_TABLE;
+		$table = fqj_table_name();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		$this->assertSame( $table, $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) );
 
@@ -85,6 +85,57 @@ class Test_FQJ_Plugin extends FQJ_TestCase {
 		fqj_activate();
 		fqj_deactivate();
 		$this->assertFalse( wp_next_scheduled( 'fqj_process_invalidation_queue' ) );
+	}
+
+	public function test_deactivation_clears_duplicate_and_migration_events() {
+		wp_schedule_event( time() + 60, 'fqj_five_minutes', 'fqj_process_invalidation_queue' );
+		wp_schedule_event( time() + 120, 'hourly', 'fqj_process_invalidation_queue' );
+		wp_schedule_single_event( time() + 10, 'fqj_data_migration' );
+
+		fqj_deactivate();
+
+		$this->assertFalse( wp_next_scheduled( 'fqj_process_invalidation_queue' ) );
+		$this->assertFalse( wp_next_scheduled( 'fqj_data_migration' ) );
+	}
+
+	public function test_network_wide_flag_is_harmless_on_single_site() {
+		if ( is_multisite() ) {
+			$this->markTestSkipped( 'Single-site behaviour.' );
+		}
+		wp_clear_scheduled_hook( 'fqj_process_invalidation_queue' );
+		fqj_activate( true );
+		$this->assertNotFalse( wp_next_scheduled( 'fqj_process_invalidation_queue' ) );
+		fqj_deactivate( true );
+		$this->assertFalse( wp_next_scheduled( 'fqj_process_invalidation_queue' ) );
+	}
+
+	public function test_for_each_site_runs_once_on_single_site() {
+		if ( is_multisite() ) {
+			$this->markTestSkipped( 'Single-site behaviour.' );
+		}
+		$calls = 0;
+		fqj_for_each_site(
+			function () use ( &$calls ) {
+				++$calls;
+			}
+		);
+		$this->assertSame( 1, $calls );
+	}
+
+	public function test_new_site_is_ignored_when_not_network_active() {
+		$this->assertNotFalse( has_action( 'wp_initialize_site', 'fqj_on_initialize_site' ) );
+		wp_clear_scheduled_hook( 'fqj_process_invalidation_queue' );
+		fqj_on_initialize_site( (object) array( 'blog_id' => get_current_blog_id() ) );
+		$this->assertFalse( wp_next_scheduled( 'fqj_process_invalidation_queue' ) );
+	}
+
+	public function test_table_name_follows_current_blog_prefix() {
+		global $wpdb;
+		$original = $wpdb->prefix;
+		$wpdb->prefix = 'other_'; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+		$name         = fqj_table_name();
+		$wpdb->prefix = $original; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+		$this->assertSame( 'other_fqj_mappings', $name );
 	}
 
 	public function test_deactivation_without_scheduled_event_is_safe() {

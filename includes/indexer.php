@@ -12,6 +12,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 // phpcs:disable PSR1.Files.SideEffects
 
 /**
+ * Name of the mapping table for the current site.
+ *
+ * Resolved at call time so it stays correct after switch_to_blog().
+ *
+ * @return string
+ */
+function fqj_table_name() {
+	global $wpdb;
+
+	return $wpdb->prefix . 'fqj_mappings';
+}
+
+/**
  * Create or update the mapping table.
  *
  * The dbDelta() function needs a strict format: no IF NOT EXISTS, two spaces after PRIMARY KEY, KEY (not INDEX),
@@ -20,7 +33,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 function fqj_create_table() {
 	global $wpdb;
-	$table_name      = FQJ_DB_TABLE;
+	$table_name      = fqj_table_name();
 	$charset_collate = $wpdb->get_charset_collate();
 
 	$sql = "CREATE TABLE {$table_name} (
@@ -102,11 +115,10 @@ function fqj_run_data_migration() {
 	$cursor     = (int) get_option( FQJ_DATA_MIGRATION_CURSOR_OPTION, 0 );
 	$ids        = fqj_get_faq_ids_after( $cursor, $batch_size );
 
-	// The final purge clears cached output, so skip per-post invalidation unless transients live in an
-	// external object cache, where the purge cannot find them in the options table.
-	$enqueue = wp_using_ext_object_cache();
+	// The final purge bumps the cache generation, which invalidates all cached output on every backend,
+	// so there is no need to enqueue per-post invalidation here.
 	foreach ( $ids as $faq_id ) {
-		fqj_rebuild_index_for_faq( $faq_id, $enqueue );
+		fqj_rebuild_index_for_faq( $faq_id, false );
 		$cursor = $faq_id;
 	}
 
@@ -142,7 +154,7 @@ add_action( 'plugins_loaded', 'fqj_maybe_schedule_data_migration', 20 );
  */
 function fqj_insert_mappings( $faq_id, $mappings ) {
 	global $wpdb;
-	$table = FQJ_DB_TABLE;
+	$table = fqj_table_name();
 	foreach ( $mappings as $m ) {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 		$wpdb->insert(
@@ -164,7 +176,7 @@ function fqj_insert_mappings( $faq_id, $mappings ) {
  */
 function fqj_delete_mappings_for_faq( $faq_id ) {
 	global $wpdb;
-	$table = FQJ_DB_TABLE;
+	$table = fqj_table_name();
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 	$wpdb->delete( $table, array( 'faq_id' => intval( $faq_id ) ), array( '%d' ) );
 }

@@ -107,15 +107,15 @@ class Test_FQJ_Queue extends FQJ_TestCase {
 	public function test_cron_worker_deletes_transients_in_batches() {
 		update_option( FQJ_OPTION_KEY, array( 'batch_size' => 2 ) );
 		foreach ( array( 1, 2, 3 ) as $id ) {
-			set_transient( 'fqj_faq_json_' . $id, 'cached' );
+			set_transient( fqj_cache_key( $id ), 'cached' );
 		}
 		fqj_queue_add_posts( array( 1, 2, 3 ) );
 
 		do_action( 'fqj_process_invalidation_queue' );
 
-		$this->assertFalse( get_transient( 'fqj_faq_json_1' ) );
-		$this->assertFalse( get_transient( 'fqj_faq_json_2' ) );
-		$this->assertSame( 'cached', get_transient( 'fqj_faq_json_3' ) );
+		$this->assertFalse( get_transient( fqj_cache_key( 1 ) ) );
+		$this->assertFalse( get_transient( fqj_cache_key( 2 ) ) );
+		$this->assertSame( 'cached', get_transient( fqj_cache_key( 3 ) ) );
 		$this->assertSame( array( 3 ), $this->get_queue() );
 
 		$log = get_option( 'fqj_invalidation_log' );
@@ -138,13 +138,13 @@ class Test_FQJ_Queue extends FQJ_TestCase {
 	}
 
 	public function test_process_now_with_limit() {
-		set_transient( 'fqj_faq_json_5', 'x' );
-		set_transient( 'fqj_faq_json_6', 'y' );
+		set_transient( fqj_cache_key( 5 ), 'x' );
+		set_transient( fqj_cache_key( 6 ), 'y' );
 		fqj_queue_add_posts( array( 5, 6 ) );
 
 		$this->assertSame( 1, fqj_process_invalidation_queue_now( 1 ) );
-		$this->assertFalse( get_transient( 'fqj_faq_json_5' ) );
-		$this->assertSame( 'y', get_transient( 'fqj_faq_json_6' ) );
+		$this->assertFalse( get_transient( fqj_cache_key( 5 ) ) );
+		$this->assertSame( 'y', get_transient( fqj_cache_key( 6 ) ) );
 
 		$this->assertSame( 1, fqj_process_invalidation_queue_now() );
 		$this->assertSame( 0, fqj_process_invalidation_queue_now() );

@@ -139,44 +139,98 @@ class Test_FQJ_Settings extends FQJ_TestCase {
 	}
 
 	public function test_purge_action_from_settings_page() {
-		set_transient( 'fqj_faq_json_7', 'x' );
+		$key = fqj_cache_key( 7 );
+		set_transient( $key, 'x' );
 		$_POST = array(
 			'fqj_action'                => 'purge_all',
 			'fqj_purge_all_nonce_field' => wp_create_nonce( 'fqj_purge_all_nonce' ),
 		);
 
 		$this->assertStringContainsString( 'All FAQ transients purged', $this->render() );
-		$this->assertFalse( get_transient( 'fqj_faq_json_7' ) );
+		$this->assertFalse( get_transient( $key ) );
 	}
 
 	public function test_purge_action_requires_valid_nonce() {
-		set_transient( 'fqj_faq_json_7', 'x' );
+		set_transient( fqj_cache_key( 7 ), 'x' );
 		$_POST = array(
 			'fqj_action'                => 'purge_all',
 			'fqj_purge_all_nonce_field' => 'bad',
 		);
 
 		$this->assertStringNotContainsString( 'All FAQ transients purged', $this->render() );
-		$this->assertSame( 'x', get_transient( 'fqj_faq_json_7' ) );
+		$this->assertSame( 'x', get_transient( fqj_cache_key( 7 ) ) );
 	}
 
 	public function test_purge_helper_removes_only_faq_transients() {
-		set_transient( 'fqj_faq_json_1', 'a', 600 );
-		set_transient( 'fqj_faq_json_22', 'b' );
+		$key_1  = fqj_cache_key( 1 );
+		$key_22 = fqj_cache_key( 22 );
+		set_transient( $key_1, 'a', 600 );
+		set_transient( $key_22, 'b' );
 		set_transient( 'fqj_invalidate_queue', array( 1 ) );
 		set_transient( 'other_plugin_cache', 'c' );
 
 		fqj_purge_all_faq_transients();
 
-		$this->assertFalse( get_transient( 'fqj_faq_json_1' ) );
-		$this->assertFalse( get_option( '_transient_timeout_fqj_faq_json_1' ) );
-		$this->assertFalse( get_transient( 'fqj_faq_json_22' ) );
+		$this->assertFalse( get_transient( $key_1 ) );
+		$this->assertFalse( get_option( '_transient_timeout_' . $key_1 ) );
+		$this->assertFalse( get_option( '_transient_' . $key_22 ) );
 		$this->assertSame( array( 1 ), get_transient( 'fqj_invalidate_queue' ) );
 		$this->assertSame( 'c', get_transient( 'other_plugin_cache' ) );
 	}
 
 	public function test_purge_helper_with_nothing_to_purge() {
+		$before = fqj_cache_generation();
+		$this->assertSame( $before + 1, fqj_purge_all_faq_transients() );
+		$this->assertFalse( get_transient( fqj_cache_key( 1 ) ) );
+	}
+
+	public function test_cache_key_includes_generation_and_post_id() {
+		update_option( 'fqj_cache_gen', 4 );
+		$this->assertSame( 'fqj_faq_json_4_9', fqj_cache_key( 9 ) );
+		delete_option( 'fqj_cache_gen' );
+		$this->assertSame( 'fqj_faq_json_1_9', fqj_cache_key( 9 ) );
+	}
+
+	public function test_purge_makes_cached_output_unreachable_with_external_object_cache() {
+		global $wp_using_ext_object_cache;
+		$previous                   = $wp_using_ext_object_cache;
+		$wp_using_ext_object_cache = true; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+
+		try {
+			$old_key = fqj_cache_key( 3 );
+			set_transient( $old_key, 'stale', 600 );
+			$this->assertSame( 'stale', get_transient( $old_key ) );
+
+			fqj_purge_all_faq_transients();
+
+			$this->assertNotSame( $old_key, fqj_cache_key( 3 ) );
+			$this->assertFalse( get_transient( fqj_cache_key( 3 ) ) );
+		} finally {
+			$wp_using_ext_object_cache = $previous; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+		}
+	}
+
+	public function test_purge_sweeps_dead_rows_and_escapes_like_wildcards() {
+		$old_key = fqj_cache_key( 3 );
+		set_transient( $old_key, 'x', 600 );
+		// "_" must not act as a wildcard: this unrelated option must survive.
+		update_option( '_transient_fqjXfaqXjson_1', 'keep' );
+
 		fqj_purge_all_faq_transients();
-		$this->assertFalse( get_transient( 'fqj_faq_json_1' ) );
+
+		$this->assertFalse( get_option( '_transient_' . $old_key ) );
+		$this->assertFalse( get_option( '_transient_timeout_' . $old_key ) );
+		$this->assertSame( 'keep', get_option( '_transient_fqjXfaqXjson_1' ) );
+	}
+
+	public function test_changing_output_type_purges_cache() {
+		update_option( FQJ_OPTION_KEY, array( 'output_type' => 'faqsection' ) );
+		$gen = fqj_cache_generation();
+
+		update_option( FQJ_OPTION_KEY, array( 'output_type' => 'faqsection', 'cache_ttl' => 100 ) );
+		$this->assertSame( $gen, fqj_cache_generation() );
+
+		update_option( FQJ_OPTION_KEY, array( 'output_type' => 'faqpage' ) );
+		$this->assertSame( $gen + 1, fqj_cache_generation() );
 	}
 }

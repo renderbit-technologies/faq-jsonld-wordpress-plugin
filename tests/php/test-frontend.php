@@ -78,14 +78,14 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 		$html = $this->render_head_for( $post );
 		$this->assertStringContainsString( 'generated, no output', $html );
 		$this->assertStringNotContainsString( '<script', $html );
-		$this->assertSame( '__FQJ_EMPTY__', get_transient( 'fqj_faq_json_' . $post ) );
+		$this->assertSame( '__FQJ_EMPTY__', get_transient( fqj_cache_key( $post ) ) );
 
 		$this->assertStringContainsString( 'cached, no output', $this->render_head_for( $post ) );
 	}
 
 	public function test_cached_output_is_served_from_transient() {
 		$post = self::factory()->post->create();
-		set_transient( 'fqj_faq_json_' . $post, '<script type="application/ld+json">{"cached":true}</script>' );
+		set_transient( fqj_cache_key( $post ), '<script type="application/ld+json">{"cached":true}</script>' );
 
 		$html = $this->render_head_for( $post );
 		$this->assertStringContainsString( '(cached)', $html );
@@ -94,7 +94,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 
 	public function test_blank_cached_value_reports_unknown_state() {
 		$post = self::factory()->post->create();
-		set_transient( 'fqj_faq_json_' . $post, '   ' );
+		set_transient( fqj_cache_key( $post ), '   ' );
 		$this->assertStringContainsString( 'cached, unknown state', $this->render_head_for( $post ) );
 	}
 
@@ -104,11 +104,11 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 		$this->create_faq( 'Q', 'A', array( 'posts' => array( $post ) ) );
 
 		$html   = $this->render_head_for( $post );
-		$cached = get_transient( 'fqj_faq_json_' . $post );
+		$cached = get_transient( fqj_cache_key( $post ) );
 		$this->assertStringStartsWith( '<script type="application/ld+json">', $cached );
 		$this->assertStringContainsString( $cached, $html );
 
-		$timeout = (int) get_option( '_transient_timeout_fqj_faq_json_' . $post );
+		$timeout = (int) get_option( '_transient_timeout_' . fqj_cache_key( $post ) );
 		$this->assertEqualsWithDelta( time() + 600, $timeout, 5 );
 	}
 
@@ -152,7 +152,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 		global $wpdb;
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		$wpdb->delete(
-			FQJ_DB_TABLE,
+			fqj_table_name(),
 			array(
 				'faq_id'       => $faq,
 				'mapping_type' => 'post',
@@ -258,7 +258,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 
 		$html = $this->render_head_for( $post );
 		$this->assertNull( $this->extract_json_ld( $html ) );
-		$this->assertSame( '__FQJ_EMPTY__', get_transient( 'fqj_faq_json_' . $post ) );
+		$this->assertSame( '__FQJ_EMPTY__', get_transient( fqj_cache_key( $post ) ) );
 	}
 
 	public function test_faqs_with_empty_question_or_answer_are_skipped() {
@@ -269,7 +269,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 
 		$html = $this->render_head_for( $post );
 		$this->assertNull( $this->extract_json_ld( $html ) );
-		$this->assertSame( '__FQJ_EMPTY__', get_transient( 'fqj_faq_json_' . $post ) );
+		$this->assertSame( '__FQJ_EMPTY__', get_transient( fqj_cache_key( $post ) ) );
 	}
 
 	public function test_answer_html_is_stripped_and_unicode_kept() {

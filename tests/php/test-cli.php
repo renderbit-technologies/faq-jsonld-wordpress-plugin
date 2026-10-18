@@ -44,23 +44,18 @@ class Test_FQJ_Cli extends FQJ_TestCase {
 		$this->assertSame( 'FQJ\FqjCli', WP_CLI::get_command( 'fqj' ) );
 	}
 
-	public function test_purge_transients_reports_count() {
-		set_transient( 'fqj_faq_json_1', 'a' );
-		set_transient( 'fqj_faq_json_2', 'b', 600 );
+	public function test_purge_transients_bumps_generation() {
+		$key = fqj_cache_key( 1 );
+		set_transient( $key, 'a' );
 		set_transient( 'keep_me', 'c' );
+		$gen = fqj_cache_generation();
 
 		$this->cli->purge_transients( array(), array() );
 
-		$this->assertFalse( get_transient( 'fqj_faq_json_1' ) );
-		$this->assertFalse( get_transient( 'fqj_faq_json_2' ) );
+		$this->assertFalse( get_transient( $key ) );
 		$this->assertSame( 'c', get_transient( 'keep_me' ) );
-		// Each transient is found via its value row (and timeout row, if any); only the first delete succeeds.
-		$this->assertSame( 'Purged 2 faq transients.', $this->last_success() );
-	}
-
-	public function test_purge_transients_with_none() {
-		$this->cli->purge_transients( array(), array() );
-		$this->assertSame( 'Purged 0 faq transients.', $this->last_success() );
+		$this->assertSame( $gen + 1, fqj_cache_generation() );
+		$this->assertSame( 'Purged FAQ cache (generation ' . ( $gen + 1 ) . ').', $this->last_success() );
 	}
 
 	public function test_process_queue_with_limit() {

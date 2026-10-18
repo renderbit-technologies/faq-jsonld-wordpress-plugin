@@ -137,20 +137,72 @@ function fqj_render_settings_page() {
 }
 
 /**
- * Helper: purge all faq transients (used by settings and WP-CLI)
+ * Current cache generation. Part of every cached output key, so bumping it orphans all cached output.
+ *
+ * @return int
+ */
+function fqj_cache_generation() {
+	return max( 1, (int) get_option( 'fqj_cache_gen', 1 ) );
+}
+
+/**
+ * Transient key for the cached JSON-LD output of a post.
+ *
+ * @param int $post_id Post ID.
+ * @return string
+ */
+function fqj_cache_key( $post_id ) {
+	return 'fqj_faq_json_' . fqj_cache_generation() . '_' . intval( $post_id );
+}
+
+/**
+ * Purge all cached FAQ output.
+ *
+ * Bumps the cache generation, which works with any storage backend (including persistent object caches,
+ * where transients never reach the options table) in O(1). Without an external object cache the orphaned
+ * rows are also removed from wp_options so dead transients do not pile up.
+ *
+ * @return int The new cache generation.
  */
 function fqj_purge_all_faq_transients() {
 	global $wpdb;
 
-	// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-	$rows = $wpdb->get_col( $wpdb->prepare( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s", '%_transient_fqj_faq_json_%' ) );
-	// phpcs:enable
+	$generation = fqj_cache_generation() + 1;
+	if ( false === get_option( 'fqj_cache_gen' ) ) {
+		add_option( 'fqj_cache_gen', $generation, '', true );
+	} else {
+		update_option( 'fqj_cache_gen', $generation, true );
+	}
 
-	if ( $rows ) {
-		foreach ( $rows as $opt ) {
-			// option_name may be _transient_fqj_faq_json_{id} or _transient_timeout_fqj_faq_json_{id}.
-			$key = preg_replace( '/^_transient_|^_transient_timeout_/', '', $opt );
-			delete_transient( $key );
+	if ( ! wp_using_ext_object_cache() ) {
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$rows = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+				$wpdb->esc_like( '_transient_fqj_faq_json_' ) . '%',
+				$wpdb->esc_like( '_transient_timeout_fqj_faq_json_' ) . '%'
+			)
+		);
+		// phpcs:enable
+		foreach ( $rows as $option_name ) {
+			delete_option( $option_name );
 		}
 	}
+
+	return $generation;
 }
+
+/**
+ * Cached output depends on the output type, so changing it must purge.
+ *
+ * @param mixed $old_value Previous settings.
+ * @param mixed $value     New settings.
+ */
+function fqj_maybe_purge_on_settings_change( $old_value, $value ) {
+	$old_type = is_array( $old_value ) && isset( $old_value['output_type'] ) ? $old_value['output_type'] : 'faqsection';
+	$new_type = is_array( $value ) && isset( $value['output_type'] ) ? $value['output_type'] : 'faqsection';
+	if ( $old_type !== $new_type ) {
+		fqj_purge_all_faq_transients();
+	}
+}
+add_action( 'update_option_' . FQJ_OPTION_KEY, 'fqj_maybe_purge_on_settings_change', 10, 2 );

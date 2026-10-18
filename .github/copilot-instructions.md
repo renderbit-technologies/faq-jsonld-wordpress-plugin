@@ -28,7 +28,7 @@ This plugin manages FAQ items as a custom post type (CPT) and injects FAQ JSON-L
 ## Project-Specific Patterns
 
 - **Mapping Structure:** All associations (post, post_type, term, url, global) are stored in a single table for fast lookups.
-- **Transient Keys:** Format is `fqj_faq_json_{post_id}`.
+- **Transient Keys:** Format is `fqj_faq_json_{generation}_{post_id}`; always build it with `fqj_cache_key( $post_id )`. The mapping table name comes from `fqj_table_name()`.
 - **Admin JS:** Uses Select2 for post selectors, AJAX for search (`fqj_search_posts` action).
 - **Settings/Health Pages:** Registered as submenus under the FAQ Items CPT.
 

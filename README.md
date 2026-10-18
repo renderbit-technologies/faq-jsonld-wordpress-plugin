@@ -50,7 +50,8 @@ A WordPress plugin to manage FAQ items as a custom post type (CPT) and inject FA
   - `includes/wpcli.php`: WP-CLI commands
   - `assets/js/fqj-admin.js`: Admin JS (Select2, AJAX)
 - **Mapping Types:** All associations are stored in a single table for fast lookups.
-- **Transient Keys:** `fqj_faq_json_{post_id}`
+- **Transient Keys:** `fqj_faq_json_{generation}_{post_id}` (build with `fqj_cache_key( $post_id )`). "Purge all" bumps the `fqj_cache_gen` option, which works with persistent object caches too.
+- **Uninstall:** Deleting the plugin removes its options, transients, cron events, post meta and mapping table (on every site of a multisite network). `faq_item` posts are kept by default; to delete them as well, add `add_filter( 'fqj_uninstall_delete_faqs', '__return_true' );` (e.g. in a mu-plugin) before deleting the plugin.
 - **Admin JS:** Uses Select2 for post selectors, AJAX for search (`fqj_search_posts` action).
 - **Background Processing:** Invalidation queue is processed every 5 minutes by WP-Cron.
 

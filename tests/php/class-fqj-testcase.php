@@ -64,7 +64,7 @@ abstract class FQJ_TestCase extends WP_UnitTestCase {
 	 */
 	protected function get_mappings( $faq_id ) {
 		global $wpdb;
-		$table = FQJ_DB_TABLE;
+		$table = fqj_table_name();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		return $wpdb->get_results( $wpdb->prepare( "SELECT mapping_type, mapping_value FROM {$table} WHERE faq_id = %d ORDER BY id", $faq_id ), ARRAY_A );
 	}

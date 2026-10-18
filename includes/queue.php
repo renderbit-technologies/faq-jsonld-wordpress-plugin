@@ -176,7 +176,7 @@ function fqj_process_invalidation_queue_cron() {
 		if ( $pid <= 0 ) {
 			continue;
 		}
-		delete_transient( 'fqj_faq_json_' . $pid );
+		delete_transient( fqj_cache_key( $pid ) );
 	}
 
 	// log and save last run.
@@ -203,7 +203,7 @@ function fqj_process_invalidation_queue_now( $limit = null ) {
 	$pop = fqj_queue_pop_posts( $limit );
 	if ( ! empty( $pop ) ) {
 		foreach ( $pop as $pid ) {
-			delete_transient( 'fqj_faq_json_' . intval( $pid ) );
+			delete_transient( fqj_cache_key( intval( $pid ) ) );
 			++$processed;
 			if ( count( $sample ) < 20 ) {
 				$sample[] = intval( $pid );

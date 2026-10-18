@@ -141,7 +141,7 @@ class Test_FQJ_Ajax extends WP_Ajax_UnitTestCase {
 	}
 
 	public function test_process_queue_now() {
-		set_transient( 'fqj_faq_json_11', 'x' );
+		set_transient( fqj_cache_key( 11 ), 'x' );
 		fqj_queue_add_posts( array( 11, 12, 13 ) );
 
 		$this->nonce( 'fqj_health_nonce' );
@@ -152,7 +152,7 @@ class Test_FQJ_Ajax extends WP_Ajax_UnitTestCase {
 		$this->assertSame( 2, $resp['data']['processed'] );
 		$this->assertSame( 1, $resp['data']['queue_len'] );
 		$this->assertGreaterThan( 0, $resp['data']['last_run'] );
-		$this->assertFalse( get_transient( 'fqj_faq_json_11' ) );
+		$this->assertFalse( get_transient( fqj_cache_key( 11 ) ) );
 	}
 
 	public function test_process_queue_now_requires_manage_options() {
@@ -171,22 +171,23 @@ class Test_FQJ_Ajax extends WP_Ajax_UnitTestCase {
 	}
 
 	public function test_purge_transients() {
-		set_transient( 'fqj_faq_json_1', 'x' );
+		$key = fqj_cache_key( 1 );
+		set_transient( $key, 'x' );
 		$this->nonce( 'fqj_health_nonce' );
 		$resp = $this->call( 'fqj_purge_transients' );
 
 		$this->assertTrue( $resp['success'] );
-		$this->assertFalse( get_transient( 'fqj_faq_json_1' ) );
+		$this->assertFalse( get_transient( $key ) );
 	}
 
 	public function test_purge_transients_requires_manage_options() {
 		$this->_setRole( 'editor' );
-		set_transient( 'fqj_faq_json_1', 'x' );
+		set_transient( fqj_cache_key( 1 ), 'x' );
 		$this->nonce( 'fqj_health_nonce' );
 
 		$resp = $this->call( 'fqj_purge_transients' );
 		$this->assertFalse( $resp['success'] );
-		$this->assertSame( 'x', get_transient( 'fqj_faq_json_1' ) );
+		$this->assertSame( 'x', get_transient( fqj_cache_key( 1 ) ) );
 	}
 
 	public function test_purge_transients_rejects_bad_nonce() {
