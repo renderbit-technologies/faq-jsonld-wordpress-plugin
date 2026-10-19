@@ -55,3 +55,17 @@ Admin JS (`assets/js/fqj-admin.js`, `fqj-health.js`) uses jQuery and a bundled S
 ## Releasing
 
 `composer bump-*` runs `bin/bump-version.php`, which keeps four version strings in sync: `composer.json` `version`, the plugin `Version` header and `FQJ_VERSION` in `faq-jsonld.php`, and `Stable tag` in `readme.txt`. It then refreshes `composer.lock`. Add a `readme.txt` changelog entry by hand. After merging to `main`, push a `vX.Y.Z` tag: `draft-release.yml` creates a draft GitHub release, and publishing it runs `deploy-wporg.yml`, which checks that the versions match and deploys to WordPress.org SVN.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues for `renderbit-technologies/faq-jsonld-wordpress-plugin` (via the `gh` CLI). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.

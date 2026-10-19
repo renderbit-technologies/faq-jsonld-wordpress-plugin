@@ -8,9 +8,11 @@
 /.gitattributes     export-ignore
 /.gitignore         export-ignore
 /bin                export-ignore
+/docs               export-ignore
 /tests              export-ignore
 /AGENTS.md          export-ignore
 /CLAUDE.md          export-ignore
+/CONTEXT.md         export-ignore
 /CONTRIBUTING.md    export-ignore
 /composer.json      export-ignore
 /composer.lock      export-ignore
