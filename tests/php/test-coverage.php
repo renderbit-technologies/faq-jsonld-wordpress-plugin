@@ -297,6 +297,8 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 			'category base'       => array( 'category_base', 'topics' ),
 			'tag base'            => array( 'tag_base', 'labels' ),
 			'home'                => array( 'home', 'https://example.org' ),
+			'show on front'       => array( 'show_on_front', 'page' ),
+			'page on front'       => array( 'page_on_front', '123' ),
 		);
 	}
 
@@ -310,5 +312,50 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 		$generation = fqj_cache_generation();
 		update_option( $option, $value );
 		$this->assertGreaterThan( $generation, fqj_cache_generation() );
+	}
+
+	public function test_renaming_a_parent_invalidates_descendants() {
+		$parent     = self::factory()->post->create(
+			array(
+				'post_type' => 'page',
+				'post_name' => 'parent',
+			)
+		);
+		$child      = self::factory()->post->create(
+			array(
+				'post_type'   => 'page',
+				'post_name'   => 'child',
+				'post_parent' => $parent,
+			)
+		);
+		$grandchild = self::factory()->post->create(
+			array(
+				'post_type'   => 'page',
+				'post_name'   => 'grandchild',
+				'post_parent' => $child,
+			)
+		);
+		$other      = self::factory()->post->create( array( 'post_type' => 'page' ) );
+		$this->create_faq( 'Child?', 'Yes.', array( 'urls' => array( get_permalink( $child ) ) ) );
+		$this->assertSame( array( $child, $grandchild ), fqj_descendant_post_ids( $parent ) );
+
+		fqj_queue_pop_posts( 1000 );
+		wp_update_post(
+			array(
+				'ID'         => $parent,
+				'post_title' => 'Same slug',
+			)
+		);
+		$this->assertSame( array(), $this->get_queue(), 'A title change leaves descendants alone.' );
+
+		wp_update_post(
+			array(
+				'ID'        => $parent,
+				'post_name' => 'renamed',
+			)
+		);
+		$this->assertEqualSets( array( $child, $grandchild ), $this->get_queue() );
+		$this->assertNotContains( $other, $this->get_queue() );
+		$this->assertSame( array(), fqj_faq_ids_for_post( $child ), 'The URL association no longer matches the moved child.' );
 	}
 }

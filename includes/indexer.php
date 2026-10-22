@@ -137,8 +137,10 @@ function fqj_run_data_migration() {
 	}
 
 	$batch_size = max( 1, (int) apply_filters( 'fqj_data_migration_batch_size', 25 ) );
-	$cursor     = (int) get_option( FQJ_DATA_MIGRATION_CURSOR_OPTION, 0 );
-	$ids        = fqj_get_faq_ids_after( $cursor, $batch_size );
+	// The cursor belongs to one target version; a cursor left by an older migration restarts from the top.
+	$saved  = get_option( FQJ_DATA_MIGRATION_CURSOR_OPTION );
+	$cursor = is_array( $saved ) && isset( $saved['version'], $saved['cursor'] ) && FQJ_DATA_VERSION === $saved['version'] ? (int) $saved['cursor'] : 0;
+	$ids    = fqj_get_faq_ids_after( $cursor, $batch_size );
 
 	// The final purge bumps the cache generation, which invalidates all cached output on every backend,
 	// so there is no need to enqueue per-post invalidation here.
@@ -152,7 +154,14 @@ function fqj_run_data_migration() {
 	}
 
 	if ( count( $ids ) >= $batch_size ) {
-		update_option( FQJ_DATA_MIGRATION_CURSOR_OPTION, $cursor, false );
+		update_option(
+			FQJ_DATA_MIGRATION_CURSOR_OPTION,
+			array(
+				'version' => FQJ_DATA_VERSION,
+				'cursor'  => $cursor,
+			),
+			false
+		);
 		wp_schedule_single_event( time() + 10, 'fqj_data_migration' );
 		return;
 	}

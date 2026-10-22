@@ -426,11 +426,44 @@ function fqj_on_post_permalink_change( $post_id, $post_after, $post_before ) {
 		return;
 	}
 	delete_transient( fqj_cache_key( $post_id ) );
+
+	// Child pages and attachments carry the post's slug in their permalinks.
+	if ( $post_after->post_name !== $post_before->post_name || (int) $post_after->post_parent !== (int) $post_before->post_parent ) {
+		fqj_queue_add_posts( fqj_descendant_post_ids( $post_id ) );
+	}
 }
 add_action( 'post_updated', 'fqj_on_post_permalink_change', 10, 3 );
 
 /**
- * Purge all cached output when a setting that changes every post's URL changes.
+ * IDs of every post below a post in the post_parent tree, revisions excluded.
+ *
+ * @param int $post_id Post ID.
+ * @return int[]
+ */
+function fqj_descendant_post_ids( $post_id ) {
+	global $wpdb;
+
+	$found   = array();
+	$parents = array( (int) $post_id );
+	while ( $parents ) {
+		$placeholders = implode( ',', array_fill( 0, count( $parents ), '%d' ) );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- placeholders live in $placeholders.
+		$children = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_parent IN ({$placeholders}) AND post_type <> 'revision'", $parents ) );
+		$parents  = array();
+		foreach ( array_map( 'intval', $children ) as $child ) {
+			// A corrupt parent loop must not run forever.
+			if ( $child !== (int) $post_id && ! isset( $found[ $child ] ) ) {
+				$found[ $child ] = $child;
+				$parents[]       = $child;
+			}
+		}
+	}
+
+	return array_values( $found );
+}
+
+/**
+ * Purge all cached output when a setting that changes every post's URL, or which page sits at `/`, changes.
  */
 function fqj_purge_on_url_settings_change() {
 	fqj_purge_all_faq_transients();
@@ -439,3 +472,5 @@ add_action( 'update_option_permalink_structure', 'fqj_purge_on_url_settings_chan
 add_action( 'update_option_category_base', 'fqj_purge_on_url_settings_change', 10, 0 );
 add_action( 'update_option_tag_base', 'fqj_purge_on_url_settings_change', 10, 0 );
 add_action( 'update_option_home', 'fqj_purge_on_url_settings_change', 10, 0 );
+add_action( 'update_option_show_on_front', 'fqj_purge_on_url_settings_change', 10, 0 );
+add_action( 'update_option_page_on_front', 'fqj_purge_on_url_settings_change', 10, 0 );
