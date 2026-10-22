@@ -39,6 +39,7 @@ define( 'FQJ_DATA_MIGRATION_CURSOR_OPTION', 'fqj_data_migration_cursor' );
  * Autoload includes
  */
 require_once FQJ_PLUGIN_DIR . 'includes/settings.php';
+require_once FQJ_PLUGIN_DIR . 'includes/coverage.php';
 require_once FQJ_PLUGIN_DIR . 'includes/indexer.php';
 require_once FQJ_PLUGIN_DIR . 'includes/queue.php';
 require_once FQJ_PLUGIN_DIR . 'includes/admin.php';

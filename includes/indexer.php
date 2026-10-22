@@ -230,49 +230,6 @@ function fqj_get_mappings_for_faq( $faq_id ) {
 }
 
 /**
- * Query args that identify a single post when permalinks are plain (e.g. `?p=123`, `?book=slug`).
- *
- * @return string[]
- */
-function fqj_identifying_query_args() {
-	$args = array( 'p', 'page_id', 'attachment_id' );
-	foreach ( get_post_types( array( 'publicly_queryable' => true ), 'objects' ) as $type ) {
-		if ( is_string( $type->query_var ) && '' !== $type->query_var ) {
-			$args[] = $type->query_var;
-		}
-	}
-
-	return array_values( array_unique( $args ) );
-}
-
-/**
- * Normalize a URL for mapping storage and lookup: drop fragment and trailing slash, and drop the
- * query string except for args that identify a post (plain permalinks), so `/?p=1` and `/?p=2` differ.
- *
- * Index and frontend lookup must use the same shape since mappings are compared with exact `=`.
- *
- * @param string $url The URL.
- * @return string
- */
-function fqj_normalize_url( $url ) {
-	$url   = (string) $url;
-	$parts = explode( '?', (string) strtok( $url, '#' ), 2 );
-	$base  = rtrim( $parts[0], '/' );
-
-	if ( isset( $parts[1] ) && '' !== $parts[1] ) {
-		parse_str( $parts[1], $query );
-		$keep = array_intersect_key( $query, array_flip( fqj_identifying_query_args() ) );
-		$keep = array_filter( $keep, 'is_scalar' );
-		if ( $keep ) {
-			ksort( $keep );
-			$base .= '/?' . http_build_query( $keep );
-		}
-	}
-
-	return $base;
-}
-
-/**
  * Build mapping rows from saved payload and index them
  * payload is array with keys 'urls', 'posts', 'post_types', 'terms', 'global'
  *
@@ -301,7 +258,7 @@ function fqj_rebuild_index_for_faq( $faq_id, $enqueue = true ) {
 				'value' => fqj_normalize_url( $u ),
 			);
 			// also map internal URLs to post IDs for faster lookup.
-			$pid = url_to_postid( $u );
+			$pid = fqj_post_for_url( $u );
 			if ( $pid ) {
 				$mappings[] = array(
 					'type'  => 'post',
@@ -378,7 +335,8 @@ function fqj_enqueue_invalidation_for_mappings( $mappings ) {
 				$post_ids_to_enqueue[] = intval( $m['value'] );
 				break;
 			case 'url':
-				$pid = url_to_postid( $m['value'] );
+				// item_value is VARCHAR(64), so URLs are resolved to a post now rather than queued.
+				$pid = fqj_post_for_url( $m['value'] );
 				if ( $pid ) {
 					$post_ids_to_enqueue[] = intval( $pid );
 				}
@@ -468,51 +426,3 @@ function fqj_on_faq_before_delete( $post_id, $post = null ) {
 	fqj_delete_mappings_for_faq( $post_id );
 }
 add_action( 'before_delete_post', 'fqj_on_faq_before_delete', 10, 2 );
-
-/**
- * Drop a post's cached output when its terms change.
- *
- * @param int    $object_id  Object ID.
- * @param array  $terms      Terms passed.
- * @param array  $tt_ids     New term taxonomy IDs.
- * @param string $taxonomy   Taxonomy.
- * @param bool   $append     Whether terms were appended.
- * @param array  $old_tt_ids Previous term taxonomy IDs.
- */
-function fqj_on_object_terms_set( $object_id, $terms, $tt_ids, $taxonomy, $append, $old_tt_ids ) {
-	$type = get_post_type( $object_id );
-	if ( ! $type || 'faq_item' === $type || wp_is_post_revision( $object_id ) ) {
-		return;
-	}
-	if ( ! $append ) {
-		$new = array_map( 'intval', (array) $tt_ids );
-		$old = array_map( 'intval', (array) $old_tt_ids );
-		sort( $new );
-		sort( $old );
-		if ( $new === $old ) {
-			return;
-		}
-	}
-	delete_transient( fqj_cache_key( $object_id ) );
-}
-add_action( 'set_object_terms', 'fqj_on_object_terms_set', 10, 6 );
-
-/**
- * Drop a post's cached output when its permalink or visibility changes.
- *
- * @param int     $post_id     Post ID.
- * @param WP_Post $post_after  Post after the update.
- * @param WP_Post $post_before Post before the update.
- */
-function fqj_on_post_permalink_change( $post_id, $post_after, $post_before ) {
-	if ( 'faq_item' === $post_after->post_type || wp_is_post_revision( $post_id ) ) {
-		return;
-	}
-	if ( $post_after->post_name === $post_before->post_name
-		&& (int) $post_after->post_parent === (int) $post_before->post_parent
-		&& $post_after->post_status === $post_before->post_status ) {
-		return;
-	}
-	delete_transient( fqj_cache_key( $post_id ) );
-}
-add_action( 'post_updated', 'fqj_on_post_permalink_change', 10, 3 );
