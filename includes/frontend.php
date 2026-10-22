@@ -90,6 +90,19 @@ function fqj_maybe_print_faq_jsonld() {
 		return;
 	}
 
+	// Only coverable posts get cached output, so invalidation can always reach it. Private posts and
+	// previews render fresh every time.
+	if ( ! fqj_post_is_coverable( $current_id ) || is_preview() ) {
+		$output = fqj_render_faq_jsonld( $current_id );
+		echo "\n<!-- FAQ JSON-LD (uncached" . ( '' === $output ? ', no output' : '' ) . ") -->\n";
+		if ( '' !== $output ) {
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			echo $output . "\n";
+		}
+
+		return;
+	}
+
 	$opts      = get_option( FQJ_OPTION_KEY );
 	$cache_ttl = isset( $opts['cache_ttl'] ) ? intval( $opts['cache_ttl'] ) : 12 * HOUR_IN_SECONDS;
 
@@ -109,8 +122,8 @@ function fqj_maybe_print_faq_jsonld() {
 		return;
 	}
 
-	$faq_ids = fqj_faq_ids_for_post( $current_id );
-	if ( empty( $faq_ids ) ) {
+	$script = fqj_render_faq_jsonld( $current_id );
+	if ( '' === $script ) {
 		// cache negative result to avoid repeated queries.
 		set_transient( $transient_key, '__FQJ_EMPTY__', $cache_ttl );
 		echo "\n<!-- FAQ JSON-LD (generated, no output) -->\n";
@@ -118,21 +131,35 @@ function fqj_maybe_print_faq_jsonld() {
 		return;
 	}
 
-	// Now fetch the FAQ posts.
-	$args = array(
-		'post_type'      => 'faq_item',
-		'post_status'    => 'publish',
-		'posts_per_page' => -1,
-		'post__in'       => $faq_ids,
-		'orderby'        => 'post__in',
-	);
-	$faqs = get_posts( $args );
-	if ( ! $faqs ) {
-		set_transient( $transient_key, '__FQJ_EMPTY__', $cache_ttl );
-		echo "\n<!-- FAQ JSON-LD (generated, no output) -->\n";
+	echo "\n<!-- FAQ JSON-LD injected by FAQ JSON-LD Manager plugin (generated) -->\n";
+	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	echo $script . "\n";
 
-		return;
+	set_transient( $transient_key, $script, $cache_ttl );
+}
+add_action( 'wp_head', 'fqj_maybe_print_faq_jsonld', 1 );
+
+/**
+ * Build the JSON-LD script element for a post from its published FAQs.
+ *
+ * @param int $post_id Post ID.
+ * @return string The script element, or '' when no FAQ applies.
+ */
+function fqj_render_faq_jsonld( $post_id ) {
+	$faq_ids = fqj_faq_ids_for_post( $post_id );
+	if ( empty( $faq_ids ) ) {
+		return '';
 	}
+
+	$faqs = get_posts(
+		array(
+			'post_type'      => 'faq_item',
+			'post_status'    => 'publish',
+			'posts_per_page' => -1,
+			'post__in'       => $faq_ids,
+			'orderby'        => 'post__in',
+		)
+	);
 
 	$main_entities = array();
 	foreach ( $faqs as $f ) {
@@ -153,10 +180,7 @@ function fqj_maybe_print_faq_jsonld() {
 	}
 
 	if ( empty( $main_entities ) ) {
-		set_transient( $transient_key, '__FQJ_EMPTY__', $cache_ttl );
-		echo "\n<!-- FAQ JSON-LD (generated, no output) -->\n";
-
-		return;
+		return '';
 	}
 
 	$json_ld = array(
@@ -165,13 +189,6 @@ function fqj_maybe_print_faq_jsonld() {
 		'mainEntity' => $main_entities,
 	);
 
-	$script = '<script type="application/ld+json">' .
+	return '<script type="application/ld+json">' .
 		wp_json_encode( $json_ld, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_HEX_TAG | JSON_HEX_AMP ) . '</script>';
-
-	echo "\n<!-- FAQ JSON-LD injected by FAQ JSON-LD Manager plugin (generated) -->\n";
-	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-	echo $script . "\n";
-
-	set_transient( $transient_key, $script, $cache_ttl );
 }
-add_action( 'wp_head', 'fqj_maybe_print_faq_jsonld', 1 );

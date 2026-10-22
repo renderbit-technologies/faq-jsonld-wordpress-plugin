@@ -76,8 +76,8 @@ class Test_FQJ_Admin extends FQJ_TestCase {
 		$this->assertSame( array( 'https://example.org/a/', 'https://example.org/b' ), $urls, 'Rejected URLs are dropped, not stored as empty strings.' );
 
 		$values = wp_list_pluck( $this->get_mappings( $faq ), 'mapping_value' );
-		$this->assertContains( 'https://example.org/a', $values );
-		$this->assertContains( 'https://example.org/b', $values );
+		$this->assertContains( '/a', $values );
+		$this->assertContains( '/b', $values );
 		$this->assertNotContains( '', $values );
 	}
 
@@ -101,6 +101,64 @@ class Test_FQJ_Admin extends FQJ_TestCase {
 		ob_start();
 		fqj_rejected_urls_notice();
 		$this->assertSame( '', ob_get_clean(), 'Notice shows once.' );
+		unset( $_GET['post'] );
+	}
+
+	public function test_urls_matching_no_permalink_show_warning_with_suggestion() {
+		$post = self::factory()->post->create( array( 'post_name' => 'hello' ) );
+		$faq  = $this->create_faq();
+		$this->submit(
+			$faq,
+			array(
+				'fqj_assoc_type' => 'urls',
+				'fqj_assoc_urls' => implode( "\n", array( get_permalink( $post ), home_url( '/?p=' . $post ), 'https://external.example.net/x', home_url( '/missing/' ) ) ),
+			)
+		);
+
+		$this->assertCount( 4, $this->payload( $faq )['urls'], 'Warn only; every URL is saved.' );
+
+		$_GET['post'] = $faq;
+		ob_start();
+		fqj_unmatched_urls_notice();
+		$html = ob_get_clean();
+		unset( $_GET['post'] );
+
+		$this->assertStringContainsString( esc_html( home_url( '/?p=' . $post ) ), $html );
+		$this->assertStringContainsString( 'did you mean <code>' . esc_html( get_permalink( $post ) ) . '</code>', $html );
+		$this->assertStringContainsString( 'external.example.net/x', $html );
+		$this->assertStringContainsString( esc_html( home_url( '/missing/' ) ), $html );
+		$this->assertSame( 3, substr_count( $html, '<li>' ), 'The real permalink is not listed.' );
+		$this->assertSame( 1, substr_count( $html, 'did you mean' ) );
+
+		$_GET['post'] = $faq;
+		ob_start();
+		fqj_unmatched_urls_notice();
+		$this->assertSame( '', ob_get_clean(), 'Notice shows once.' );
+		unset( $_GET['post'] );
+	}
+
+	public function test_urls_that_are_permalinks_show_no_warning() {
+		$post = self::factory()->post->create( array( 'post_name' => 'hello' ) );
+		$faq  = $this->create_faq();
+		$this->submit(
+			$faq,
+			array(
+				'fqj_assoc_type' => 'urls',
+				'fqj_assoc_urls' => 'https://example.org/missing',
+			)
+		);
+		$this->submit(
+			$faq,
+			array(
+				'fqj_assoc_type' => 'urls',
+				'fqj_assoc_urls' => get_permalink( $post ),
+			)
+		);
+
+		$_GET['post'] = $faq;
+		ob_start();
+		fqj_unmatched_urls_notice();
+		$this->assertSame( '', ob_get_clean() );
 		unset( $_GET['post'] );
 	}
 

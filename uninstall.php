@@ -22,7 +22,7 @@ $fqj_uninstall_site = function () {
 	global $wpdb;
 
 	// Options.
-	foreach ( array( 'fqj_settings', 'fqj_db_version', 'fqj_data_version', 'fqj_data_migration_cursor', 'fqj_invalidation_log', 'fqj_last_queue_run', 'fqj_cache_gen' ) as $option ) {
+	foreach ( array( 'fqj_settings', 'fqj_db_version', 'fqj_data_version', 'fqj_data_migration_cursor', 'fqj_invalidation_log', 'fqj_last_queue_run', 'fqj_cache_gen', 'fqj_url_migration_report' ) as $option ) {
 		delete_option( $option );
 	}
 
@@ -32,7 +32,7 @@ $fqj_uninstall_site = function () {
 
 	// Transients. Cached output held only in an external object cache cannot be enumerated and expires on its own.
 	delete_transient( 'fqj_invalidate_queue' );
-	foreach ( array( 'fqj_faq_json_', 'fqj_rejected_urls_' ) as $prefix ) {
+	foreach ( array( 'fqj_faq_json_', 'fqj_rejected_urls_', 'fqj_unmatched_urls_' ) as $prefix ) {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		$rows = $wpdb->get_col(
 			$wpdb->prepare(

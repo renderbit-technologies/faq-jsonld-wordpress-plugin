@@ -167,11 +167,6 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 
 			$covered = fqj_posts_covered_by_mapping( $mapping, 0, 1000 );
 			foreach ( $this->posts as $name => $post_id ) {
-				// Known gap, left for #53: with plain permalinks url_to_postid() cannot resolve a custom post
-				// type URL (`?fqj_book=slug`), so the URL mapping matches the book but covers nothing.
-				if ( '' === $structure && 'url' === $mapping['type'] && 'book' === $name ) {
-					continue;
-				}
 				$matches = fqj_post_is_coverable( $post_id )
 					&& array() !== array_intersect( $entry['faq_ids'], fqj_faq_ids_for_post( $post_id ) );
 				$this->assertSame( $matches, in_array( $post_id, $covered, true ), "{$label} covering {$name}" );
@@ -242,5 +237,78 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 			$once = fqj_normalize_url( $url );
 			$this->assertSame( $once, fqj_normalize_url( $once ), $url );
 		}
+	}
+
+	public function test_post_for_url_needs_the_permalink_itself() {
+		$post = self::factory()->post->create( array( 'post_name' => 'hello' ) );
+		$page = self::factory()->post->create(
+			array(
+				'post_type' => 'page',
+				'post_name' => 'welcome',
+			)
+		);
+		update_option( 'show_on_front', 'page' );
+		update_option( 'page_on_front', $page );
+
+		$this->assertSame( $post, fqj_post_for_url( get_permalink( $post ) ) );
+		$this->assertSame( $post, fqj_post_for_url( '/hello/' ) );
+		$this->assertSame( $post, fqj_post_for_url( 'https://www.example.org/hello?utm=x#top' ) );
+		$this->assertSame( 0, fqj_post_for_url( home_url( '/?p=' . $post ) ), 'A shortlink is not the permalink.' );
+		$this->assertSame( $post, fqj_post_routed_from_url( home_url( '/?p=' . $post ) ) );
+		$this->assertSame( $page, fqj_post_for_url( home_url( '/' ) ) );
+		$this->assertSame( 0, fqj_post_for_url( home_url( '/welcome/' ) ), 'The front page slug URL is not its permalink.' );
+		$this->assertSame( $page, fqj_post_routed_from_url( home_url( '/welcome/' ) ) );
+		$this->assertSame( 0, fqj_post_for_url( 'https://external.example.net/hello' ) );
+		$this->assertSame( 0, fqj_post_routed_from_url( 'https://external.example.net/hello' ) );
+	}
+
+	public function test_post_for_url_resolves_custom_post_types_with_plain_permalinks() {
+		$this->set_permalink_structure( '' );
+		$book = self::factory()->post->create(
+			array(
+				'post_type' => 'fqj_book',
+				'post_name' => 'dragons',
+			)
+		);
+
+		$this->assertSame( '/?fqj_book=dragons', fqj_normalize_url( get_permalink( $book ) ) );
+		$this->assertSame( $book, fqj_post_for_url( get_permalink( $book ) ) );
+		$this->assertSame( 0, fqj_post_for_url( home_url( '/?fqj_book=nothing' ) ) );
+	}
+
+	public function test_normalize_url_below_a_subdirectory_home() {
+		update_option( 'home', 'http://example.org/blog' );
+
+		$this->assertSame( '/about', fqj_normalize_url( 'http://example.org/blog/about/' ) );
+		$this->assertSame( '/', fqj_normalize_url( 'https://example.org/blog/' ) );
+		$this->assertSame( '/?p=3', fqj_normalize_url( 'http://example.org/blog/?p=3' ) );
+		$this->assertSame( 'http://example.org/blogroll', fqj_normalize_url( 'http://example.org/blogroll/' ) );
+		$this->assertSame( 'http://example.org/other', fqj_normalize_url( 'http://example.org/other' ) );
+	}
+
+	/**
+	 * Settings that change every post's URL.
+	 *
+	 * @return array
+	 */
+	public function url_settings() {
+		return array(
+			'permalink structure' => array( 'permalink_structure', '/%year%/%postname%/' ),
+			'category base'       => array( 'category_base', 'topics' ),
+			'tag base'            => array( 'tag_base', 'labels' ),
+			'home'                => array( 'home', 'https://example.org' ),
+		);
+	}
+
+	/**
+	 * @dataProvider url_settings
+	 *
+	 * @param string $option Option name.
+	 * @param string $value  New value.
+	 */
+	public function test_url_settings_change_purges_all_cached_output( $option, $value ) {
+		$generation = fqj_cache_generation();
+		update_option( $option, $value );
+		$this->assertGreaterThan( $generation, fqj_cache_generation() );
 	}
 }

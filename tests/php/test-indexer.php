@@ -35,6 +35,18 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 			'plain page_id'      => array( 'https://example.com/?page_id=7&utm=x#a', 'https://example.com/?page_id=7' ),
 			'plain p differs'    => array( 'https://example.com/index.php?p=124', 'https://example.com/index.php/?p=124' ),
 			'unicode path'       => array( 'https://example.com/café/', 'https://example.com/café' ),
+			'internal path'      => array( 'http://example.org/about/', '/about' ),
+			'internal https www' => array( 'https://WWW.example.org/about/#x', '/about' ),
+			'internal home'      => array( 'http://example.org/', '/' ),
+			'internal bare home' => array( 'http://example.org', '/' ),
+			'internal plain p'   => array( 'http://example.org/?utm=x&p=12', '/?p=12' ),
+			'internal sorted'    => array( 'http://example.org/?page_id=3&p=12', '/?p=12&page_id=3' ),
+			'relative path'      => array( '/about/', '/about' ),
+			'relative home'      => array( '/', '/' ),
+			'relative plain p'   => array( '/?p=12', '/?p=12' ),
+			'other port'         => array( 'http://example.org:8080/about', 'http://example.org:8080/about' ),
+			'subdomain'          => array( 'http://shop.example.org/about', 'http://shop.example.org/about' ),
+			'protocol relative'  => array( '//example.org/about/', '/about' ),
 		);
 	}
 
@@ -238,7 +250,7 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 		);
 	}
 
-	public function test_rebuild_with_url_payload_also_maps_internal_post() {
+	public function test_rebuild_with_url_payload_stores_internal_urls_relative_and_no_post_row() {
 		$target = self::factory()->post->create( array( 'post_name' => 'about-us' ) );
 		$faq    = $this->create_faq(
 			'Q',
@@ -255,11 +267,7 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 			array(
 				array(
 					'mapping_type'  => 'url',
-					'mapping_value' => 'http://example.org/about-us',
-				),
-				array(
-					'mapping_type'  => 'post',
-					'mapping_value' => (string) $target,
+					'mapping_value' => '/about-us',
 				),
 				array(
 					'mapping_type'  => 'url',

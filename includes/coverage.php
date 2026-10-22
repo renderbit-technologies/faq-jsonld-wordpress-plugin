@@ -31,8 +31,40 @@ function fqj_identifying_query_args() {
 }
 
 /**
- * Normalize a URL for mapping storage and lookup: drop fragment and trailing slash, and drop the
- * query string except for args that identify a post (plain permalinks), so `/?p=1` and `/?p=2` differ.
+ * Host and path of the site root, for telling internal URLs apart.
+ *
+ * The host is lowercased and loses a leading `www.`; the path has no trailing slash ('' at the domain root).
+ *
+ * @return string[] Host, then path.
+ */
+function fqj_site_root() {
+	$home = wp_parse_url( home_url() );
+	$host = isset( $home['host'] ) ? fqj_bare_host( $home['host'], isset( $home['port'] ) ? $home['port'] : null ) : '';
+	$path = isset( $home['path'] ) ? rtrim( $home['path'], '/' ) : '';
+
+	return array( $host, $path );
+}
+
+/**
+ * Lowercase host with any leading `www.` dropped, plus the port when there is one.
+ *
+ * @param string   $host Host.
+ * @param int|null $port Port.
+ * @return string
+ */
+function fqj_bare_host( $host, $port = null ) {
+	$host = preg_replace( '/^www\./', '', strtolower( (string) $host ) );
+
+	return null === $port ? $host : $host . ':' . (int) $port;
+}
+
+/**
+ * Normalize a URL for mapping storage and lookup.
+ *
+ * A URL on this site (same host as home_url(), ignoring scheme and a leading `www.`, under its path) becomes a
+ * path relative to the site root: `/about`, `/` for the front page, `/?p=12` with plain permalinks. Other URLs
+ * stay absolute. Either way the fragment and trailing slash go, and the query string keeps only args that
+ * identify a post, sorted, so `/?p=1` and `/?p=2` differ. Normalizing a normalized URL changes nothing.
  *
  * Index and frontend lookup must use the same shape since mappings are compared with exact `=`.
  *
@@ -40,21 +72,71 @@ function fqj_identifying_query_args() {
  * @return string
  */
 function fqj_normalize_url( $url ) {
-	$url   = (string) $url;
+	$url   = trim( (string) $url );
 	$parts = explode( '?', (string) strtok( $url, '#' ), 2 );
-	$base  = rtrim( $parts[0], '/' );
+	$base  = $parts[0];
+	$query = '';
 
 	if ( isset( $parts[1] ) && '' !== $parts[1] ) {
-		parse_str( $parts[1], $query );
-		$keep = array_intersect_key( $query, array_flip( fqj_identifying_query_args() ) );
+		parse_str( $parts[1], $args );
+		$keep = array_intersect_key( $args, array_flip( fqj_identifying_query_args() ) );
 		$keep = array_filter( $keep, 'is_scalar' );
 		if ( $keep ) {
 			ksort( $keep );
-			$base .= '/?' . http_build_query( $keep );
+			$query = '?' . http_build_query( $keep );
 		}
 	}
 
-	return $base;
+	$relative = fqj_site_relative_path( $base );
+	if ( null !== $relative ) {
+		$path = rtrim( $relative, '/' );
+		if ( '' !== $query ) {
+			return $path . '/' . $query;
+		}
+
+		return '' === $path ? '/' : $path;
+	}
+
+	$base = rtrim( $base, '/' );
+
+	return '' === $query ? $base : $base . '/' . $query;
+}
+
+/**
+ * The path of a URL relative to the site root, or null when the URL is not on this site.
+ *
+ * A path that starts with a single slash already counts as relative to the site root.
+ *
+ * @param string $base URL without query string or fragment.
+ * @return string|null Path starting with `/`, or null.
+ */
+function fqj_site_relative_path( $base ) {
+	if ( '' !== $base && '/' === $base[0] && ( ! isset( $base[1] ) || '/' !== $base[1] ) ) {
+		return $base;
+	}
+
+	$parts = wp_parse_url( $base );
+	if ( ! is_array( $parts ) || empty( $parts['host'] ) ) {
+		return null;
+	}
+
+	list( $site_host, $site_path ) = fqj_site_root();
+	if ( fqj_bare_host( $parts['host'], isset( $parts['port'] ) ? $parts['port'] : null ) !== $site_host ) {
+		return null;
+	}
+
+	$path = isset( $parts['path'] ) ? $parts['path'] : '';
+	if ( '' !== $site_path ) {
+		if ( rtrim( $path, '/' ) === $site_path ) {
+			return '/';
+		}
+		if ( 0 !== strpos( $path, $site_path . '/' ) ) {
+			return null;
+		}
+		$path = substr( $path, strlen( $site_path ) );
+	}
+
+	return '' === $path ? '/' : $path;
 }
 
 /**
@@ -103,11 +185,18 @@ function fqj_lookup_candidates( $post_id ) {
 			'type'  => 'url',
 			'value' => $url,
 		);
-		// Rows indexed before URL normalization may still carry a trailing slash.
-		$candidates[] = array(
-			'type'  => 'url',
-			'value' => $url . '/',
-		);
+
+		// Until the data migration to version 3 has reindexed every FAQ, rows may still hold the absolute
+		// URL, with or without a trailing slash.
+		if ( version_compare( (string) get_option( FQJ_DATA_VERSION_OPTION, '0' ), '3', '<' ) ) {
+			$legacy = untrailingslashit( home_url() ) . ( '/' === $url ? '' : $url );
+			foreach ( array( $url . '/', $legacy, $legacy . '/' ) as $value ) {
+				$candidates[] = array(
+					'type'  => 'url',
+					'value' => $value,
+				);
+			}
+		}
 	}
 
 	// Always include global mapping.
@@ -149,13 +238,59 @@ function fqj_faq_ids_for_post( $post_id ) {
 }
 
 /**
- * The post a URL resolves to.
+ * The post WordPress would route a URL to, without checking that the URL is that post's permalink.
  *
- * @param string $url URL.
+ * Covers shortlinks and old slugs too. Use fqj_post_for_url() to decide what a URL association covers.
+ *
+ * @param string $url URL, absolute or relative to the site root.
+ * @return int Post ID, or 0.
+ */
+function fqj_post_routed_from_url( $url ) {
+	$normalized = fqj_normalize_url( $url );
+	if ( '' === $normalized || '/' !== $normalized[0] ) {
+		return 0;
+	}
+
+	$post_id = (int) url_to_postid( home_url( $normalized ) );
+	if ( $post_id ) {
+		return $post_id;
+	}
+
+	// url_to_postid() does not know custom post type query vars (`?book=slug`) used by plain permalinks.
+	$query = (string) wp_parse_url( $normalized, PHP_URL_QUERY );
+	if ( '' === $query ) {
+		return 0;
+	}
+	parse_str( $query, $args );
+	foreach ( get_post_types( array( 'publicly_queryable' => true ), 'objects' ) as $type ) {
+		if ( is_string( $type->query_var ) && '' !== $type->query_var && isset( $args[ $type->query_var ] ) && is_string( $args[ $type->query_var ] ) ) {
+			$post = get_page_by_path( $args[ $type->query_var ], OBJECT, $type->name );
+			if ( $post ) {
+				return (int) $post->ID;
+			}
+		}
+	}
+
+	return 0;
+}
+
+/**
+ * The post matching a URL: the post whose normalized permalink equals the normalized URL.
+ *
+ * Being routed to a post is not enough. The front page's slug URL routes to it but is not its permalink.
+ *
+ * @param string $url URL, absolute or relative to the site root.
  * @return int Post ID, or 0.
  */
 function fqj_post_for_url( $url ) {
-	return (int) url_to_postid( (string) $url );
+	$post_id = fqj_post_routed_from_url( $url );
+	if ( ! $post_id ) {
+		return 0;
+	}
+
+	$permalink = get_permalink( $post_id );
+
+	return $permalink && fqj_normalize_url( $permalink ) === fqj_normalize_url( $url ) ? $post_id : 0;
 }
 
 /**
@@ -293,3 +428,14 @@ function fqj_on_post_permalink_change( $post_id, $post_after, $post_before ) {
 	delete_transient( fqj_cache_key( $post_id ) );
 }
 add_action( 'post_updated', 'fqj_on_post_permalink_change', 10, 3 );
+
+/**
+ * Purge all cached output when a setting that changes every post's URL changes.
+ */
+function fqj_purge_on_url_settings_change() {
+	fqj_purge_all_faq_transients();
+}
+add_action( 'update_option_permalink_structure', 'fqj_purge_on_url_settings_change', 10, 0 );
+add_action( 'update_option_category_base', 'fqj_purge_on_url_settings_change', 10, 0 );
+add_action( 'update_option_tag_base', 'fqj_purge_on_url_settings_change', 10, 0 );
+add_action( 'update_option_home', 'fqj_purge_on_url_settings_change', 10, 0 );

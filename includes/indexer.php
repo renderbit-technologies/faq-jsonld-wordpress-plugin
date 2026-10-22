@@ -142,7 +142,11 @@ function fqj_run_data_migration() {
 
 	// The final purge bumps the cache generation, which invalidates all cached output on every backend,
 	// so there is no need to enqueue per-post invalidation here.
+	$from_version = (string) get_option( FQJ_DATA_VERSION_OPTION, '0' );
 	foreach ( $ids as $faq_id ) {
+		if ( version_compare( $from_version, '3', '<' ) ) {
+			fqj_migrate_url_associations( $faq_id );
+		}
 		fqj_rebuild_index_for_faq( $faq_id, false );
 		$cursor = $faq_id;
 	}
@@ -158,6 +162,91 @@ function fqj_run_data_migration() {
 	update_option( FQJ_DATA_VERSION_OPTION, FQJ_DATA_VERSION );
 }
 add_action( 'fqj_data_migration', 'fqj_run_data_migration' );
+
+/**
+ * Data migration 3: keep URL associations that only matched through the `post` row indexing used to add.
+ *
+ * Must run before the FAQ is reindexed, which deletes those rows. Every change is added to the URL
+ * migration report shown on the FAQ list screen.
+ *
+ * @param int $faq_id The FAQ ID.
+ */
+function fqj_migrate_url_associations( $faq_id ) {
+	$payload = json_decode( (string) get_post_meta( $faq_id, 'fqj_assoc_data_json', true ), true );
+	if ( ! is_array( $payload ) || empty( $payload['urls'] ) || ! is_array( $payload['urls'] ) ) {
+		return;
+	}
+
+	// Posts the old index covered through a URL rather than through the FAQ's own post associations.
+	$explicit = isset( $payload['posts'] ) && is_array( $payload['posts'] ) ? array_map( 'intval', $payload['posts'] ) : array();
+	$old_ids  = array();
+	foreach ( fqj_get_mappings_for_faq( $faq_id ) as $m ) {
+		$pid = (int) $m['value'];
+		if ( 'post' === $m['type'] && $pid > 0 && ! in_array( $pid, $explicit, true ) ) {
+			$old_ids[ $pid ] = $pid;
+		}
+	}
+
+	$urls     = array_values( $payload['urls'] );
+	$dead     = array();
+	$rewrites = array();
+	foreach ( $urls as $i => $url ) {
+		$pid = fqj_post_for_url( $url );
+		if ( $pid ) {
+			unset( $old_ids[ $pid ] );
+			continue;
+		}
+
+		// A shortlink, the front page's slug URL or an old slug still routes to the post it used to cover.
+		$pid = fqj_post_routed_from_url( $url );
+		if ( $pid && isset( $old_ids[ $pid ] ) ) {
+			$urls[ $i ] = get_permalink( $pid );
+			$rewrites[] = array( $url, $urls[ $i ] );
+			unset( $old_ids[ $pid ] );
+			continue;
+		}
+
+		$dead[] = $i;
+	}
+
+	$leftover = array();
+	foreach ( $old_ids as $pid ) {
+		$permalink = get_post( $pid ) ? get_permalink( $pid ) : false;
+		if ( $permalink ) {
+			$leftover[] = $permalink;
+		}
+	}
+
+	if ( 1 === count( $dead ) && 1 === count( $leftover ) ) {
+		// Exactly one dead URL and one unexplained post: most likely the post was renamed.
+		$rewrites[]       = array( $urls[ $dead[0] ], $leftover[0] );
+		$urls[ $dead[0] ] = $leftover[0];
+	} else {
+		// Ambiguous: keep the dead URLs (the save warning flags them) and add each post's permalink.
+		foreach ( $leftover as $permalink ) {
+			$urls[]     = $permalink;
+			$rewrites[] = array( '', $permalink );
+		}
+	}
+
+	if ( ! $rewrites ) {
+		return;
+	}
+
+	$payload['urls'] = array_values( array_unique( $urls ) );
+	update_post_meta( $faq_id, 'fqj_assoc_data_json', wp_slash( wp_json_encode( $payload ) ) );
+
+	$report = get_option( FQJ_URL_MIGRATION_REPORT_OPTION, array() );
+	$report = is_array( $report ) ? $report : array();
+	foreach ( $rewrites as $rewrite ) {
+		$report[] = array(
+			'faq_id' => (int) $faq_id,
+			'old'    => $rewrite[0],
+			'new'    => $rewrite[1],
+		);
+	}
+	fqj_update_option_no_autoload( FQJ_URL_MIGRATION_REPORT_OPTION, $report );
+}
 
 /**
  * Schedule the data migration when the stored data version is older than the code.
@@ -253,18 +342,11 @@ function fqj_rebuild_index_for_faq( $faq_id, $enqueue = true ) {
 
 	if ( isset( $payload['urls'] ) && is_array( $payload['urls'] ) ) {
 		foreach ( $payload['urls'] as $u ) {
+			// A URL association covers whichever post is at the URL now, so no post row (ADR-0001).
 			$mappings[] = array(
 				'type'  => 'url',
 				'value' => fqj_normalize_url( $u ),
 			);
-			// also map internal URLs to post IDs for faster lookup.
-			$pid = fqj_post_for_url( $u );
-			if ( $pid ) {
-				$mappings[] = array(
-					'type'  => 'post',
-					'value' => intval( $pid ),
-				);
-			}
 		}
 	}
 
