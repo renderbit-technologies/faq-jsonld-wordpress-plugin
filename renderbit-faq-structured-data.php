@@ -1,9 +1,9 @@
 <?php
 /**
  * Plugin Name: Renderbit FAQ Structured Data
- * Plugin URI:  https://github.com/renderbit-technologies/faq-jsonld-wordpress-plugin
+ * Plugin URI:  https://github.com/renderbit-technologies/renderbit-faq-structured-data-wordpress-plugin
  * Description: Manage FAQ items as a custom post type and output FAQPage JSON-LD on the posts and pages they apply to.
- * Version:     4.0.0
+ * Version:     4.0.1
  * Requires at least: 6.5
  * Requires PHP: 7.2
  * Author:      Renderbit Technologies
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // phpcs:disable PSR1.Files.SideEffects
 
 // Keep in sync with the Version header above; used to version the plugin's own assets.
-define( 'RFSD_VERSION', '4.0.0' );
+define( 'RFSD_VERSION', '4.0.1' );
 // Upper bound for the invalidation batch size setting.
 define( 'RFSD_MAX_BATCH_SIZE', 5000 );
 define( 'RFSD_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );

@@ -4,7 +4,7 @@ Tags: faq, schema, json-ld, structured data, seo
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 4.0.0
+Stable tag: 4.0.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -40,7 +40,7 @@ Built for large sites:
 * `rfsd_answer_text( $text, $faq_post )` filters the plain-text answer.
 * `rfsd_uninstall_delete_faqs` (default `false`): return `true` to delete FAQ posts when the plugin is deleted.
 
-Development happens on [GitHub](https://github.com/renderbit-technologies/faq-jsonld-wordpress-plugin).
+Development happens on [GitHub](https://github.com/renderbit-technologies/renderbit-faq-structured-data-wordpress-plugin).
 
 == Installation ==
 
@@ -73,6 +73,10 @@ Its options, transients, scheduled events, post meta and mapping table are remov
 
 == Changelog ==
 
+= 4.0.1 =
+* The WP-CLI commands work under their documented names (`wp rfsd purge-transients`, `wp rfsd process-queue`, `wp rfsd queue-info`). The underscore forms keep working.
+* The plugin's GitHub repository moved to renderbit-technologies/renderbit-faq-structured-data-wordpress-plugin.
+
 = 4.0.0 =
 * Renamed from FAQ JSON-LD Manager (`faq-jsonld`) to Renderbit FAQ Structured Data (`renderbit-faq-structured-data`). Install and activate this plugin first: it imports the FAQs, their associations and the settings of FAQ JSON-LD Manager on every site. Then deactivate and delete the old plugin. Deleting the old plugin first removes the FAQ associations.
 * Every name now uses the `rfsd_` prefix. The FAQ post type is `rfsd_faq` (was `faq_item`), the filters are `rfsd_question_text`, `rfsd_answer_text` and `rfsd_uninstall_delete_faqs` (were `fqj_*`), and the WP-CLI command is `wp rfsd` (was `wp fqj`). Update any custom code, bookmarks or scripts that use the old names.
@@ -101,6 +105,9 @@ Its options, transients, scheduled events, post meta and mapping table are remov
 * Uninstall, deactivation and multisite handling are complete.
 
 == Upgrade Notice ==
+
+= 4.0.1 =
+Fixes the documented WP-CLI command names.
 
 = 4.0.0 =
 Replaces FAQ JSON-LD Manager. Activate this plugin before deleting the old one so your FAQs and settings are imported. Filters, the post type and the WP-CLI command now use the `rfsd` prefix.

@@ -6,7 +6,7 @@
 ![WP-Cron](https://img.shields.io/badge/Background-WP--Cron%20Queue-orange)
 ![WP-CLI](https://img.shields.io/badge/CLI-WP--CLI-21759B?logo=wordpress&logoColor=fff)
 ![Select2](https://img.shields.io/badge/Admin-Select2-e535ab)
-[![Tests](https://github.com/renderbit-technologies/faq-jsonld-wordpress-plugin/actions/workflows/tests.yml/badge.svg)](https://github.com/renderbit-technologies/faq-jsonld-wordpress-plugin/actions/workflows/tests.yml)
+[![Tests](https://github.com/renderbit-technologies/renderbit-faq-structured-data-wordpress-plugin/actions/workflows/tests.yml/badge.svg)](https://github.com/renderbit-technologies/renderbit-faq-structured-data-wordpress-plugin/actions/workflows/tests.yml)
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](LICENSE.md)
 
 A WordPress plugin to manage FAQ items as a custom post type (CPT) and inject FAQ JSON-LD into posts/pages. Designed for performance and scalability with advanced cache management, background queueing, and admin/CLI tools.

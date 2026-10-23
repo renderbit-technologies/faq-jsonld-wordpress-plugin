@@ -62,7 +62,7 @@ Admin JS (`assets/js/rfsd-admin.js`, `rfsd-health.js`) uses jQuery and a bundled
 
 ### Issue tracker
 
-Issues live in GitHub Issues for `renderbit-technologies/faq-jsonld-wordpress-plugin` (via the `gh` CLI). See `docs/agents/issue-tracker.md`.
+Issues live in GitHub Issues for `renderbit-technologies/renderbit-faq-structured-data-wordpress-plugin` (via the `gh` CLI). See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
