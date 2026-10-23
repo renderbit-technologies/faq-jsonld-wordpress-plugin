@@ -37,10 +37,9 @@ define( 'RFSD_DATA_MIGRATION_CURSOR_OPTION', 'rfsd_data_migration_cursor' );
 // URL associations rewritten by data migration 3, shown on the FAQ list screen until dismissed.
 define( 'RFSD_URL_MIGRATION_REPORT_OPTION', 'rfsd_url_migration_report' );
 
-// Post type of FAQ items. Older post type names in RFSD_LEGACY_POST_TYPES are renamed to it on existing sites.
 define( 'RFSD_POST_TYPE', 'rfsd_faq' );
-define( 'RFSD_LEGACY_POST_TYPES', array( 'faq_item' ) );
-define( 'RFSD_POST_TYPE_OPTION', 'rfsd_post_type' );
+// Set once a site's data from the earlier FAQ JSON-LD Manager plugin (faq-jsonld) has been imported.
+define( 'RFSD_LEGACY_IMPORT_OPTION', 'rfsd_legacy_import' );
 
 /**
  * Autoload includes
@@ -86,32 +85,105 @@ function rfsd_register_cpt_faq_item() {
 add_action( 'init', 'rfsd_register_cpt_faq_item' );
 
 /**
- * Rename FAQ items stored under a legacy post type to RFSD_POST_TYPE, once per site.
+ * Storage names of the earlier FAQ JSON-LD Manager plugin (slug faq-jsonld), which this plugin replaces.
  *
- * Runs before the schema upgrade and the data migration, which only look at RFSD_POST_TYPE.
+ * Only read by rfsd_import_legacy_data(); this plugin never registers or writes any of them.
+ *
+ * @return array
  */
-function rfsd_migrate_legacy_post_types() {
+function rfsd_legacy_storage_names() {
 	global $wpdb;
 
-	if ( RFSD_POST_TYPE === get_option( RFSD_POST_TYPE_OPTION ) ) {
+	return array(
+		'post_type'           => 'faq_item',
+		// Legacy meta key => this plugin's meta key.
+		'meta'                => array(
+			'fqj_assoc_data_json' => 'rfsd_assoc_data_json',
+			'fqj_assoc_type'      => 'rfsd_assoc_type',
+		),
+		// Legacy option => this plugin's option, copied when this plugin's option is absent.
+		'options'             => array(
+			'fqj_settings'             => RFSD_OPTION_KEY,
+			'fqj_url_migration_report' => RFSD_URL_MIGRATION_REPORT_OPTION,
+		),
+		'data_version_option' => 'fqj_data_version',
+		'mappings_table'      => $wpdb->prefix . 'fqj_mappings',
+		'cron_hooks'          => array( 'fqj_process_invalidation_queue', 'fqj_data_migration' ),
+	);
+}
+
+/**
+ * Import the current site's FAQs from the earlier FAQ JSON-LD Manager plugin, once per site.
+ *
+ * FAQ posts and their association meta are moved, so the old plugin stops printing them (no duplicate
+ * FAQPage output) and deleting it afterwards cannot remove them. Settings, the mapping rows and the data
+ * version are copied, so data migration 3 still finds the old `post` rows on sites below data version 3.
+ * Runs before the data migration is scheduled and before activation checks for FAQs.
+ */
+function rfsd_import_legacy_data() {
+	global $wpdb;
+
+	if ( get_option( RFSD_LEGACY_IMPORT_OPTION ) ) {
 		return;
 	}
 
-	foreach ( RFSD_LEGACY_POST_TYPES as $legacy ) {
-		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-		$ids = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_type = %s", $legacy ) );
-		if ( $ids ) {
-			$wpdb->update( $wpdb->posts, array( 'post_type' => RFSD_POST_TYPE ), array( 'post_type' => $legacy ) );
-		}
-		// phpcs:enable
-		foreach ( $ids as $id ) {
-			clean_post_cache( (int) $id );
-		}
+	$legacy = rfsd_legacy_storage_names();
+	rfsd_maybe_upgrade_db();
+
+	// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+	$ids = array_map( 'intval', $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_type = %s", $legacy['post_type'] ) ) );
+	if ( $ids ) {
+		$wpdb->update( $wpdb->posts, array( 'post_type' => RFSD_POST_TYPE ), array( 'post_type' => $legacy['post_type'] ) );
+	}
+	foreach ( $legacy['meta'] as $old_key => $new_key ) {
+		$ids = array_merge( $ids, array_map( 'intval', $wpdb->get_col( $wpdb->prepare( "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s", $old_key ) ) ) );
+		$wpdb->update( $wpdb->postmeta, array( 'meta_key' => $new_key ), array( 'meta_key' => $old_key ) );
 	}
 
-	update_option( RFSD_POST_TYPE_OPTION, RFSD_POST_TYPE );
+	$copied   = false;
+	$suppress = $wpdb->suppress_errors( true );
+	// Fails quietly when the old table does not exist.
+	$has_old = false !== $wpdb->query( $wpdb->prepare( 'SELECT 1 FROM %i LIMIT 0', $legacy['mappings_table'] ) );
+	$wpdb->suppress_errors( $suppress );
+	if ( $has_old && ! (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i', rfsd_table_name() ) ) ) {
+		$copied = 0 < (int) $wpdb->query(
+			$wpdb->prepare(
+				'INSERT INTO %i (faq_id, mapping_type, mapping_value) SELECT faq_id, mapping_type, mapping_value FROM %i ORDER BY id',
+				rfsd_table_name(),
+				$legacy['mappings_table']
+			)
+		);
+	}
+	// phpcs:enable
+
+	foreach ( array_unique( $ids ) as $id ) {
+		clean_post_cache( $id );
+	}
+
+	foreach ( $legacy['options'] as $old_name => $new_name ) {
+		$value = get_option( $old_name );
+		if ( false === $value || false !== get_option( $new_name ) ) {
+			continue;
+		}
+		if ( RFSD_URL_MIGRATION_REPORT_OPTION === $new_name ) {
+			rfsd_update_option_no_autoload( $new_name, $value );
+		} else {
+			update_option( $new_name, $value );
+		}
+	}
+	// Without copied rows the index has to be rebuilt, which a missing data version triggers.
+	$data_version = get_option( $legacy['data_version_option'] );
+	if ( $copied && false !== $data_version && false === get_option( RFSD_DATA_VERSION_OPTION ) ) {
+		update_option( RFSD_DATA_VERSION_OPTION, $data_version );
+	}
+
+	foreach ( $legacy['cron_hooks'] as $hook ) {
+		wp_clear_scheduled_hook( $hook );
+	}
+
+	update_option( RFSD_LEGACY_IMPORT_OPTION, '1' );
 }
-add_action( 'plugins_loaded', 'rfsd_migrate_legacy_post_types', 5 );
+add_action( 'plugins_loaded', 'rfsd_import_legacy_data', 5 );
 
 /**
  * Run a callback for every site of the network, or once when the install is single-site.
@@ -141,7 +213,7 @@ function rfsd_for_each_site( $callback ) {
  * Activate the plugin for the current site: create DB table, defaults, schedule cron.
  */
 function rfsd_activate_site() {
-	rfsd_migrate_legacy_post_types();
+	rfsd_import_legacy_data();
 
 	// A site with no FAQs yet has nothing to migrate.
 	if ( false === get_option( RFSD_DATA_VERSION_OPTION ) && ! rfsd_has_faq_items() ) {

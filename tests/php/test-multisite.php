@@ -99,13 +99,13 @@ class Test_RFSD_Multisite extends RFSD_Multisite_TestCase {
 		$this->assertSame( 12 * HOUR_IN_SECONDS, get_option( RFSD_OPTION_KEY )['cache_ttl'] );
 	}
 
-	public function test_network_activation_renames_legacy_faqs_on_every_site() {
+	public function test_network_activation_imports_legacy_faqs_on_every_site() {
 		$site_id = self::factory()->blog->create();
 		$faqs    = array();
 		foreach ( array( get_main_site_id(), $site_id ) as $id ) {
 			switch_to_blog( $id );
 			$faqs[ $id ] = self::factory()->post->create( array( 'post_type' => 'faq_item' ) );
-			delete_option( RFSD_POST_TYPE_OPTION );
+			delete_option( RFSD_LEGACY_IMPORT_OPTION );
 			restore_current_blog();
 		}
 

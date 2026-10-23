@@ -64,7 +64,7 @@ class Test_RFSD_Uninstall extends RFSD_TestCase {
 		global $wpdb;
 
 		update_option( RFSD_OPTION_KEY, array( 'cache_ttl' => 60 ) );
-		update_option( RFSD_POST_TYPE_OPTION, RFSD_POST_TYPE );
+		update_option( RFSD_LEGACY_IMPORT_OPTION, '1' );
 		rfsd_update_option_no_autoload(
 			RFSD_URL_MIGRATION_REPORT_OPTION,
 			array(
@@ -87,7 +87,7 @@ class Test_RFSD_Uninstall extends RFSD_TestCase {
 		$this->assertFalse( get_option( '_transient_timeout_' . $key ) );
 		$this->assertFalse( get_option( 'rfsd_cache_gen' ) );
 		$this->assertFalse( get_option( RFSD_URL_MIGRATION_REPORT_OPTION ) );
-		$this->assertFalse( get_option( RFSD_POST_TYPE_OPTION ) );
+		$this->assertFalse( get_option( RFSD_LEGACY_IMPORT_OPTION ) );
 		$this->assertFalse( get_transient( 'rfsd_unmatched_urls_1_2' ) );
 		$this->assertSame( 'y', get_transient( 'keep_me' ) );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
@@ -142,6 +142,7 @@ class Test_RFSD_Uninstall extends RFSD_TestCase {
 		$legacy           = self::factory()->post->create( array( 'post_type' => 'faq_item' ) );
 		$post             = self::factory()->post->create();
 		$this->post_ids[] = $post;
+		$this->post_ids[] = $legacy;
 		update_post_meta( $faq, 'rfsd_assoc_type', 'urls' );
 		add_filter( 'rfsd_uninstall_delete_faqs', '__return_true' );
 
@@ -151,7 +152,7 @@ class Test_RFSD_Uninstall extends RFSD_TestCase {
 		$this->assertNull( get_post( $faq ) );
 		$this->assertNull( get_post( $draft ) );
 		$this->assertNull( get_post( $trashed ) );
-		$this->assertNull( get_post( $legacy ), 'FAQs never migrated off the legacy post type are deleted too.' );
+		$this->assertNotNull( get_post( $legacy ), 'Posts of the old faq-jsonld plugin are left to that plugin.' );
 		$this->assertNotNull( get_post( $post ) );
 	}
 }

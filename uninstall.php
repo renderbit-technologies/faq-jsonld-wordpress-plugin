@@ -22,7 +22,7 @@ $rfsd_uninstall_site = function () {
 	global $wpdb;
 
 	// Options.
-	foreach ( array( 'rfsd_settings', 'rfsd_db_version', 'rfsd_data_version', 'rfsd_data_migration_cursor', 'rfsd_invalidation_log', 'rfsd_last_queue_run', 'rfsd_cache_gen', 'rfsd_url_migration_report', 'rfsd_post_type' ) as $option ) {
+	foreach ( array( 'rfsd_settings', 'rfsd_db_version', 'rfsd_data_version', 'rfsd_data_migration_cursor', 'rfsd_invalidation_log', 'rfsd_last_queue_run', 'rfsd_cache_gen', 'rfsd_url_migration_report', 'rfsd_legacy_import' ) as $option ) {
 		delete_option( $option );
 	}
 
@@ -51,7 +51,7 @@ $rfsd_uninstall_site = function () {
 		do {
 			$faq_ids = get_posts(
 				array(
-					'post_type'              => array( 'rfsd_faq', 'faq_item' ),
+					'post_type'              => 'rfsd_faq',
 					// 'any' skips statuses excluded from search, such as trash.
 					'post_status'            => array_keys( get_post_stati() ),
 					'posts_per_page'         => 100,
