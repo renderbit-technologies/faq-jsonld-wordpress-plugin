@@ -1,24 +1,24 @@
 const { loadScript, fakeRequest } = require("./helpers");
 
-const loadHealth = () => require("../../assets/js/fqj-health.js");
+const loadHealth = () => require("../../assets/js/rfsd-health.js");
 
 // 2023-11-14 22:13:20 UTC, in seconds like the PHP side sends.
 const LAST_RUN = Date.UTC(2023, 10, 14, 22, 13, 20) / 1000;
 
 function renderPage() {
   document.body.innerHTML = `
-    <strong id="fqj-queue-count">7</strong>
-    <strong id="fqj-last-run">Never</strong>
-    <button id="fqj-process-now">Process</button>
-    <button id="fqj-purge-transients">Purge</button>
-    <button id="fqj-clear-log">Clear</button>
-    <span id="fqj-action-status"></span>`;
+    <strong id="rfsd-queue-count">7</strong>
+    <strong id="rfsd-last-run">Never</strong>
+    <button id="rfsd-process-now">Process</button>
+    <button id="rfsd-purge-transients">Purge</button>
+    <button id="rfsd-clear-log">Clear</button>
+    <span id="rfsd-action-status"></span>`;
 }
 
 /** Load the script with $.post answering per the given options. */
 async function boot(requestOptions) {
   renderPage();
-  window.fqjHealth = { ajax_url: "/wp-admin/admin-ajax.php", nonce: "n0nce" };
+  window.rfsdHealth = { ajax_url: "/wp-admin/admin-ajax.php", nonce: "n0nce" };
   const post = fakeRequest(requestOptions);
   const $ = await loadScript(loadHealth, (jq) => {
     jq.post = post;
@@ -41,7 +41,7 @@ beforeEach(() => {
 afterEach(() => {
   delete window.jQuery;
   delete window.$;
-  delete window.fqjHealth;
+  delete window.rfsdHealth;
   jest.restoreAllMocks();
 });
 
@@ -59,17 +59,17 @@ describe("process queue now", () => {
       },
     });
 
-    const event = click("fqj-process-now");
+    const event = click("rfsd-process-now");
 
     expect(event.defaultPrevented).toBe(true);
     expect(post).toHaveBeenCalledWith(
       "/wp-admin/admin-ajax.php",
-      { action: "fqj_process_queue_now", nonce: "n0nce" },
+      { action: "rfsd_process_queue_now", nonce: "n0nce" },
       expect.any(Function)
     );
-    expect(text("fqj-queue-count")).toBe("2");
-    expect(text("fqj-last-run")).toBe("2023-11-14 22:13:20 (1 min ago)");
-    expect(text("fqj-action-status")).toBe("Processed 5 items.");
+    expect(text("rfsd-queue-count")).toBe("2");
+    expect(text("rfsd-last-run")).toBe("2023-11-14 22:13:20 (1 min ago)");
+    expect(text("rfsd-action-status")).toBe("Processed 5 items.");
   });
 
   test("shows n/a when there is no last run", async () => {
@@ -79,23 +79,23 @@ describe("process queue now", () => {
         data: { processed: 0, queue_len: 0, last_run: 0, last_run_human: "" },
       },
     });
-    click("fqj-process-now");
-    expect(text("fqj-last-run")).toBe("n/a");
+    click("rfsd-process-now");
+    expect(text("rfsd-last-run")).toBe("n/a");
   });
 
   test("shows the server error message", async () => {
     await boot({
       response: { success: false, data: { message: "Permission denied" } },
     });
-    click("fqj-process-now");
-    expect(text("fqj-action-status")).toBe("Error: Permission denied");
-    expect(text("fqj-queue-count")).toBe("7");
+    click("rfsd-process-now");
+    expect(text("rfsd-action-status")).toBe("Error: Permission denied");
+    expect(text("rfsd-queue-count")).toBe("7");
   });
 
   test("shows unknown error when no message is given", async () => {
     await boot({ response: { success: false } });
-    click("fqj-process-now");
-    expect(text("fqj-action-status")).toBe("Error: unknown");
+    click("rfsd-process-now");
+    expect(text("rfsd-action-status")).toBe("Error: unknown");
   });
 
   test("reports a failed request", async () => {
@@ -104,9 +104,9 @@ describe("process queue now", () => {
       .mockImplementation(() => {});
     await boot({ fail: true, xhr: { status: 403 } });
 
-    click("fqj-process-now");
+    click("rfsd-process-now");
 
-    expect(text("fqj-action-status")).toBe("Request failed. See console.");
+    expect(text("rfsd-action-status")).toBe("Request failed. See console.");
     expect(consoleError).toHaveBeenCalledWith({ status: 403 });
   });
 });
@@ -114,15 +114,15 @@ describe("process queue now", () => {
 describe.each([
   [
     "purge transients",
-    "fqj-purge-transients",
-    "fqj_purge_transients",
+    "rfsd-purge-transients",
+    "rfsd_purge_transients",
     "Purged transients.",
     "Error purging.",
   ],
   [
     "clear log",
-    "fqj-clear-log",
-    "fqj_clear_invalidation_log",
+    "rfsd-clear-log",
+    "rfsd_clear_invalidation_log",
     "Cleared log. Reload to refresh the table.",
     "Error clearing log.",
   ],
@@ -136,7 +136,7 @@ describe.each([
     expect(event.defaultPrevented).toBe(true);
     expect(window.confirm).toHaveBeenCalledTimes(1);
     expect(post).not.toHaveBeenCalled();
-    expect(text("fqj-action-status")).toBe("");
+    expect(text("rfsd-action-status")).toBe("");
   });
 
   test("posts the action after confirmation", async () => {
@@ -148,26 +148,26 @@ describe.each([
       { action, nonce: "n0nce" },
       expect.any(Function)
     );
-    expect(text("fqj-action-status")).toBe(okText);
+    expect(text("rfsd-action-status")).toBe(okText);
   });
 
   test("shows an error response", async () => {
     await boot({ response: { success: false } });
     click(button);
-    expect(text("fqj-action-status")).toBe(errorText);
+    expect(text("rfsd-action-status")).toBe(errorText);
   });
 
   test("reports a failed request", async () => {
     await boot({ fail: true });
     click(button);
-    expect(text("fqj-action-status")).toBe("Request failed.");
+    expect(text("rfsd-action-status")).toBe("Request failed.");
   });
 });
 
 describe("localized strings", () => {
-  test("uses fqjHealth.i18n when provided", async () => {
+  test("uses rfsdHealth.i18n when provided", async () => {
     renderPage();
-    window.fqjHealth = {
+    window.rfsdHealth = {
       ajax_url: "/x",
       nonce: "n",
       i18n: { processing: "Traitement…", processed: "%d éléments traités." },
@@ -181,7 +181,7 @@ describe("localized strings", () => {
     await loadScript(loadHealth, (jq) => {
       jq.post = post;
     });
-    click("fqj-process-now");
-    expect(text("fqj-action-status")).toBe("3 éléments traités.");
+    click("rfsd-process-now");
+    expect(text("rfsd-action-status")).toBe("3 éléments traités.");
   });
 });

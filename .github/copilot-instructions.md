@@ -1,4 +1,4 @@
-# Copilot Instructions for FAQ JSON-LD WordPress Plugin
+# Copilot Instructions for Renderbit FAQ Structured Data WordPress Plugin
 
 ## Overview
 
@@ -6,20 +6,20 @@ This plugin manages FAQ items as a custom post type (CPT) and injects FAQ JSON-L
 
 ## Architecture & Key Components
 
-- **Custom Post Type:** `fqj_faq` (formerly `faq_item`) is registered for FAQ entries.
-- **Mapping Table:** MySQL table (`fqj_mappings`) links FAQ items to posts, post types, terms, URLs, or global context. See `includes/indexer.php`.
+- **Custom Post Type:** `rfsd_faq` (formerly `faq_item`) is registered for FAQ entries.
+- **Mapping Table:** MySQL table (`rfsd_mappings`) links FAQ items to posts, post types, terms, URLs, or global context. See `includes/indexer.php`.
 - **JSON-LD Output:** Injected on the frontend using `includes/frontend.php`, with per-post transient caching for performance.
 - **Cache Invalidation:** Uses a background queue (`includes/queue.php`) processed by WP-Cron or WP-CLI. Queue state and logs are visible in the Health admin page.
-- **Admin UI:** Custom meta boxes and settings in `includes/admin.php` and `includes/settings.php`. Select2 (bundled in `assets/vendor/select2`) is used for post selectors (see `assets/js/fqj-admin.js`).
+- **Admin UI:** Custom meta boxes and settings in `includes/admin.php` and `includes/settings.php`. Select2 (bundled in `assets/vendor/select2`) is used for post selectors (see `assets/js/rfsd-admin.js`).
 - **Health & Diagnostics:** Admin page (`includes/health.php`) shows queue status, logs, and provides manual actions.
-- **WP-CLI Integration:** `includes/class-fqjcli.php` provides commands for purging transients, processing the invalidation queue and showing its length.
+- **WP-CLI Integration:** `includes/class-rfsd-cli.php` provides commands for purging transients, processing the invalidation queue and showing its length.
 
 ## Developer Workflows
 
 - **Activate/Upgrade:** On plugin activation, the mapping table is created/updated automatically.
 - **Settings:** Accessible under the FAQ Items menu. Options include cache TTL, batch size, and output type.
 - **Cache Management:**
-  - Manual: Use Health admin page or WP-CLI (`wp fqj purge-transients`, `wp fqj process-queue [--limit=N]`, `wp fqj queue-info`).
+  - Manual: Use Health admin page or WP-CLI (`wp rfsd purge-transients`, `wp rfsd process-queue [--limit=N]`, `wp rfsd queue-info`).
   - Automatic: Invalidation queue is processed every 5 minutes by WP-Cron.
 - **Debugging:**
   - Check the Health admin page for queue/logs.
@@ -28,8 +28,8 @@ This plugin manages FAQ items as a custom post type (CPT) and injects FAQ JSON-L
 ## Project-Specific Patterns
 
 - **Mapping Structure:** All associations (post, post_type, term, url, global) are stored in a single table for fast lookups.
-- **Transient Keys:** Format is `fqj_faq_json_{generation}_{post_id}`; always build it with `fqj_cache_key( $post_id )`. The mapping table name comes from `fqj_table_name()`.
-- **Admin JS:** Uses Select2 for post selectors, AJAX for search (`fqj_search_posts` action).
+- **Transient Keys:** Format is `rfsd_faq_json_{generation}_{post_id}`; always build it with `rfsd_cache_key( $post_id )`. The mapping table name comes from `rfsd_table_name()`.
+- **Admin JS:** Uses Select2 for post selectors, AJAX for search (`rfsd_search_posts` action).
 - **Settings/Health Pages:** Registered as submenus under the FAQ Items CPT.
 
 ## Integration Points
@@ -40,15 +40,15 @@ This plugin manages FAQ items as a custom post type (CPT) and injects FAQ JSON-L
 
 ## Key Files
 
-- `faq-jsonld.php`: Main plugin loader and CPT registration.
+- `renderbit-faq-structured-data.php`: Main plugin loader and CPT registration.
 - `includes/indexer.php`: Mapping table logic.
 - `includes/queue.php`: Invalidation queue logic.
 - `includes/frontend.php`: JSON-LD output and caching.
 - `includes/admin.php`: Admin UI/meta boxes.
 - `includes/settings.php`: Settings page.
 - `includes/health.php`: Health/diagnostics UI.
-- `includes/class-fqjcli.php`: WP-CLI commands.
-- `assets/js/fqj-admin.js`, `assets/js/fqj-health.js`: Admin JS (Select2, AJAX).
+- `includes/class-rfsd-cli.php`: WP-CLI commands.
+- `assets/js/rfsd-admin.js`, `assets/js/rfsd-health.js`: Admin JS (Select2, AJAX).
 
 ## Example: Adding a New Mapping Type
 

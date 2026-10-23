@@ -12,7 +12,7 @@
 	convertDeprecationsToExceptions="true"
 >
 	<testsuites>
-		<testsuite name="faq-jsonld">
+		<testsuite name="renderbit-faq-structured-data">
 			<directory prefix="test-" suffix=".php">tests/php</directory>
 		</testsuite>
 	</testsuites>
@@ -23,7 +23,7 @@
 	</groups>
 	<coverage includeUncoveredFiles="true">
 		<include>
-			<file>faq-jsonld.php</file>
+			<file>renderbit-faq-structured-data.php</file>
 			<file>uninstall.php</file>
 			<directory suffix=".php">includes</directory>
 		</include>

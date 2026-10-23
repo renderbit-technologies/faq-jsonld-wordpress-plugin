@@ -1,4 +1,4 @@
-# FAQ JSON-LD
+# Renderbit FAQ Structured Data
 
 Editors write FAQs once and associate them with the posts and pages they apply to. The plugin prints those FAQs as schema.org `FAQPage` structured data on each matching singular post.
 

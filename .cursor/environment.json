@@ -1,5 +1,5 @@
 {
-  "name": "FAQ JSON-LD WordPress Plugin",
+  "name": "Renderbit FAQ Structured Data WordPress Plugin",
   "build": {
     "dockerfile": "Dockerfile",
     "context": "."

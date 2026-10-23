@@ -2,7 +2,7 @@
 /**
  * PHPUnit bootstrap: loads the WordPress test suite with the plugin active.
  *
- * @package FAQ_JSON_LD
+ * @package Renderbit_FAQ_Structured_Data
  */
 
 // phpcs:disable WordPress.Files.FileName, Generic.Files.OneObjectStructurePerFile, PSR1.Files.SideEffects
@@ -31,7 +31,7 @@ require_once __DIR__ . '/stubs/class-wp-cli.php';
 tests_add_filter(
 	'muplugins_loaded',
 	function () use ( $root ) {
-		require $root . '/faq-jsonld.php';
+		require $root . '/renderbit-faq-structured-data.php';
 	}
 );
 
@@ -40,12 +40,12 @@ tests_add_filter(
 tests_add_filter(
 	'init',
 	function () {
-		fqj_activate();
+		rfsd_activate();
 	},
 	0
 );
 
 require $tests_dir . '/includes/bootstrap.php';
 
-require_once __DIR__ . '/class-fqj-testcase.php';
-require_once __DIR__ . '/class-fqj-multisite-testcase.php';
+require_once __DIR__ . '/class-rfsd-testcase.php';
+require_once __DIR__ . '/class-rfsd-multisite-testcase.php';

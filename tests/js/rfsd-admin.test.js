@@ -1,22 +1,22 @@
 const { loadScript, fakeRequest } = require("./helpers");
 
-const loadAdmin = () => require("../../assets/js/fqj-admin.js");
+const loadAdmin = () => require("../../assets/js/rfsd-admin.js");
 
 function renderMetaBox(type, data) {
   const types = ["urls", "posts", "post_types", "tax_terms", "global", "other"];
   document.body.replaceChildren();
 
   const select = document.createElement("select");
-  select.id = "fqj_assoc_type";
+  select.id = "rfsd_assoc_type";
   types.forEach((t) => select.append(new Option(t, t, false, t === type)));
 
   const hidden = document.createElement("input");
   hidden.type = "hidden";
-  hidden.id = "fqj_assoc_data";
+  hidden.id = "rfsd_assoc_data";
   hidden.value = typeof data === "string" ? data : JSON.stringify(data || {});
 
   const container = document.createElement("div");
-  container.id = "fqj_assoc_container";
+  container.id = "rfsd_assoc_container";
 
   document.body.append(select, hidden, container);
 }
@@ -24,7 +24,7 @@ function renderMetaBox(type, data) {
 /** Load the script with select2 and $.get stubbed. */
 async function boot(type, data, getResponse) {
   renderMetaBox(type, data);
-  window.fqjAdmin = {
+  window.rfsdAdmin = {
     ajax_url: "/wp-admin/admin-ajax.php",
     nonce: "abc123",
     post_id: 42,
@@ -42,27 +42,27 @@ async function boot(type, data, getResponse) {
   return { $, select2, get };
 }
 
-const container = () => document.getElementById("fqj_assoc_container");
+const container = () => document.getElementById("rfsd_assoc_container");
 
 afterEach(() => {
   delete window.jQuery;
   delete window.$;
-  delete window.fqjAdmin;
+  delete window.rfsdAdmin;
 });
 
 describe("URL associations", () => {
   test("renders saved URLs one per line", async () => {
     await boot("urls", { urls: ["https://a.test/", "https://b.test/x"] });
 
-    const textarea = document.getElementById("fqj_assoc_urls");
+    const textarea = document.getElementById("rfsd_assoc_urls");
     expect(textarea).not.toBeNull();
-    expect(textarea.name).toBe("fqj_assoc_urls");
+    expect(textarea.name).toBe("rfsd_assoc_urls");
     expect(textarea.value).toBe("https://a.test/\nhttps://b.test/x");
   });
 
   test("renders an empty textarea without saved data", async () => {
     await boot("urls", {});
-    expect(document.getElementById("fqj_assoc_urls").value).toBe("");
+    expect(document.getElementById("rfsd_assoc_urls").value).toBe("");
   });
 });
 
@@ -76,7 +76,7 @@ describe("post associations", () => {
     expect(opts.ajax.url).toBe("/wp-admin/admin-ajax.php");
     expect(opts.ajax.data({ term: "ship" })).toEqual({
       q: "ship",
-      action: "fqj_search_posts",
+      action: "rfsd_search_posts",
       nonce: "abc123",
     });
     const results = [{ id: 1, text: "One" }];
@@ -85,8 +85,8 @@ describe("post associations", () => {
     expect(opts.templateResult({ text: "Searching…" })).toBe("Searching…");
     expect(opts.templateSelection({ id: 1, text: "One" })).toBe("One");
 
-    const select = document.getElementById("fqj_assoc_posts_select");
-    expect(select.name).toBe("fqj_assoc_posts_select[]");
+    const select = document.getElementById("rfsd_assoc_posts_select");
+    expect(select.name).toBe("rfsd_assoc_posts_select[]");
     expect(select.multiple).toBe(true);
   });
 
@@ -99,7 +99,7 @@ describe("post associations", () => {
     });
 
     const options = Array.from(
-      document.querySelectorAll("#fqj_assoc_posts_select option")
+      document.querySelectorAll("#rfsd_assoc_posts_select option")
     );
     expect(options.map((o) => [o.value, o.text, o.selected])).toEqual([
       ["5", "Five – http://x/five/", true],
@@ -117,13 +117,13 @@ describe("post type associations", () => {
 
     expect(get).toHaveBeenCalledWith(
       "/wp-admin/admin-ajax.php",
-      { action: "fqj_get_post_types", nonce: "abc123" },
+      { action: "rfsd_get_post_types", nonce: "abc123" },
       expect.any(Function),
       "json"
     );
 
     const boxes = Array.from(
-      document.querySelectorAll('input[name="fqj_assoc_post_types[]"]')
+      document.querySelectorAll('input[name="rfsd_assoc_post_types[]"]')
     );
     expect(boxes.map((b) => [b.value, b.checked])).toEqual([
       ["post", false],
@@ -135,13 +135,13 @@ describe("post type associations", () => {
   test("renders no checkboxes for an empty response", async () => {
     await boot("post_types", {}, []);
     expect(
-      document.querySelectorAll('input[name="fqj_assoc_post_types[]"]')
+      document.querySelectorAll('input[name="rfsd_assoc_post_types[]"]')
     ).toHaveLength(0);
   });
 
   test("tolerates a null response", async () => {
     await boot("post_types", {}, null);
-    expect(document.getElementById("fqj_post_types_wrap").children).toHaveLength(0);
+    expect(document.getElementById("rfsd_post_types_wrap").children).toHaveLength(0);
   });
 });
 
@@ -154,14 +154,14 @@ describe("taxonomy term associations", () => {
     const opts = select2.mock.calls[0][0];
     expect(opts.ajax.data({ term: "ne" })).toEqual({
       q: "ne",
-      action: "fqj_search_terms",
+      action: "rfsd_search_terms",
       nonce: "abc123",
     });
     expect(opts.ajax.processResults([])).toEqual({ results: [] });
     expect(opts.templateResult({ text: "T" })).toBe("T");
     expect(opts.templateSelection({ text: "T" })).toBe("T");
 
-    const option = document.querySelector("#fqj_assoc_terms_select option");
+    const option = document.querySelector("#rfsd_assoc_terms_select option");
     expect([option.value, option.text, option.selected]).toEqual([
       "3",
       "News (category)",
@@ -173,7 +173,7 @@ describe("taxonomy term associations", () => {
 describe("global association", () => {
   test("renders a hidden flag", async () => {
     await boot("global", {});
-    const flag = document.querySelector('input[name="fqj_assoc_global"]');
+    const flag = document.querySelector('input[name="rfsd_assoc_global"]');
     expect(flag.type).toBe("hidden");
     expect(flag.value).toBe("1");
   });
@@ -182,7 +182,7 @@ describe("global association", () => {
 describe("initial data and switching", () => {
   test("falls back to empty data on invalid JSON", async () => {
     await boot("urls", "{not json");
-    expect(document.getElementById("fqj_assoc_urls").value).toBe("");
+    expect(document.getElementById("rfsd_assoc_urls").value).toBe("");
   });
 
   test("renders nothing for an unknown type", async () => {
@@ -193,13 +193,13 @@ describe("initial data and switching", () => {
   test("changing the type renders the new type and restores the old one", async () => {
     const { $, select2 } = await boot("urls", { urls: ["https://a.test/"] });
 
-    $("#fqj_assoc_type").val("posts").trigger("change");
-    expect(document.getElementById("fqj_assoc_urls")).toBeNull();
-    expect(document.getElementById("fqj_assoc_posts_select")).not.toBeNull();
+    $("#rfsd_assoc_type").val("posts").trigger("change");
+    expect(document.getElementById("rfsd_assoc_urls")).toBeNull();
+    expect(document.getElementById("rfsd_assoc_posts_select")).not.toBeNull();
     expect(select2).toHaveBeenCalledTimes(1);
 
-    $("#fqj_assoc_type").val("urls").trigger("change");
-    expect(document.getElementById("fqj_assoc_urls").value).toBe("https://a.test/");
+    $("#rfsd_assoc_type").val("urls").trigger("change");
+    expect(document.getElementById("rfsd_assoc_urls").value).toBe("https://a.test/");
     expect(container().querySelectorAll("textarea")).toHaveLength(1);
   });
 
@@ -207,19 +207,19 @@ describe("initial data and switching", () => {
     const { $ } = await boot("urls", { urls: ["https://a.test/"] });
 
     // Edit the initial type, then switch away and back.
-    $("#fqj_assoc_urls").val("https://a.test/\nhttps://edited.test/");
-    $("#fqj_assoc_type").val("posts").trigger("change");
+    $("#rfsd_assoc_urls").val("https://a.test/\nhttps://edited.test/");
+    $("#rfsd_assoc_type").val("posts").trigger("change");
 
     // Start a selection on the new type.
-    $("#fqj_assoc_posts_select").append(new Option("Five", "5", true, true));
-    $("#fqj_assoc_type").val("urls").trigger("change");
-    expect(document.getElementById("fqj_assoc_urls").value).toBe(
+    $("#rfsd_assoc_posts_select").append(new Option("Five", "5", true, true));
+    $("#rfsd_assoc_type").val("urls").trigger("change");
+    expect(document.getElementById("rfsd_assoc_urls").value).toBe(
       "https://a.test/\nhttps://edited.test/"
     );
 
-    $("#fqj_assoc_type").val("posts").trigger("change");
+    $("#rfsd_assoc_type").val("posts").trigger("change");
     const options = Array.from(
-      document.querySelectorAll("#fqj_assoc_posts_select option")
+      document.querySelectorAll("#rfsd_assoc_posts_select option")
     );
     expect(options.map((o) => [o.value, o.text, o.selected])).toEqual([
       ["5", "Five", true],
@@ -228,13 +228,13 @@ describe("initial data and switching", () => {
 
   test("the saved data only belongs to the initially selected type", async () => {
     const { $ } = await boot("urls", { urls: ["https://a.test/"] });
-    $("#fqj_assoc_type").val("tax_terms").trigger("change");
-    expect(document.querySelectorAll("#fqj_assoc_terms_select option")).toHaveLength(0);
+    $("#rfsd_assoc_type").val("tax_terms").trigger("change");
+    expect(document.querySelectorAll("#rfsd_assoc_terms_select option")).toHaveLength(0);
   });
 
   test("keeps saved post types while their request is pending and ignores stale responses", async () => {
     renderMetaBox("post_types", { post_types: ["page"] });
-    window.fqjAdmin = { ajax_url: "/wp-admin/admin-ajax.php", nonce: "abc123" };
+    window.rfsdAdmin = { ajax_url: "/wp-admin/admin-ajax.php", nonce: "abc123" };
     const pending = [];
     const get = jest.fn((url, data, success) => {
       pending.push(success);
@@ -256,13 +256,13 @@ describe("initial data and switching", () => {
     ];
 
     // Switch away and back before the first request answers.
-    $("#fqj_assoc_type").val("global").trigger("change");
-    $("#fqj_assoc_type").val("post_types").trigger("change");
+    $("#rfsd_assoc_type").val("global").trigger("change");
+    $("#rfsd_assoc_type").val("post_types").trigger("change");
     pending[0](types);
     pending[1](types);
 
     const boxes = Array.from(
-      document.querySelectorAll('input[name="fqj_assoc_post_types[]"]')
+      document.querySelectorAll('input[name="rfsd_assoc_post_types[]"]')
     );
     expect(boxes.map((b) => [b.value, b.checked])).toEqual([
       ["post", false],
@@ -276,10 +276,10 @@ describe("initial data and switching", () => {
       { name: "page", label: "Page" },
     ]);
     $('input[value="post"]').prop("checked", true);
-    $("#fqj_assoc_type").val("global").trigger("change");
-    $("#fqj_assoc_type").val("post_types").trigger("change");
+    $("#rfsd_assoc_type").val("global").trigger("change");
+    $("#rfsd_assoc_type").val("post_types").trigger("change");
     const boxes = Array.from(
-      document.querySelectorAll('input[name="fqj_assoc_post_types[]"]')
+      document.querySelectorAll('input[name="rfsd_assoc_post_types[]"]')
     );
     expect(boxes.map((b) => [b.value, b.checked])).toEqual([
       ["post", true],
@@ -289,7 +289,7 @@ describe("initial data and switching", () => {
 
   test("uses localized strings when provided", async () => {
     renderMetaBox("global", {});
-    window.fqjAdmin = {
+    window.rfsdAdmin = {
       ajax_url: "/x",
       nonce: "n",
       i18n: { globalHelp: "Sitewide FAQ" },

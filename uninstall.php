@@ -1,14 +1,14 @@
 <?php
 /**
- * Uninstall script for FAQ JSON-LD Manager.
+ * Uninstall script for Renderbit FAQ Structured Data.
  *
  * WARNING: This removes plugin options, scheduled events, transients, post meta and the mapping table
  * permanently, on every site of a multisite network. FAQ posts are kept unless the
- * `fqj_uninstall_delete_faqs` filter returns true.
+ * `rfsd_uninstall_delete_faqs` filter returns true.
  *
  * Plugin functions are not loaded during uninstall, so everything here is self-contained.
  *
- * @package FAQ_JSON_LD
+ * @package Renderbit_FAQ_Structured_Data
  */
 
 if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
@@ -18,21 +18,21 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 /**
  * Remove all plugin data for the current site.
  */
-$fqj_uninstall_site = function () {
+$rfsd_uninstall_site = function () {
 	global $wpdb;
 
 	// Options.
-	foreach ( array( 'fqj_settings', 'fqj_db_version', 'fqj_data_version', 'fqj_data_migration_cursor', 'fqj_invalidation_log', 'fqj_last_queue_run', 'fqj_cache_gen', 'fqj_url_migration_report', 'fqj_post_type' ) as $option ) {
+	foreach ( array( 'rfsd_settings', 'rfsd_db_version', 'rfsd_data_version', 'rfsd_data_migration_cursor', 'rfsd_invalidation_log', 'rfsd_last_queue_run', 'rfsd_cache_gen', 'rfsd_url_migration_report', 'rfsd_post_type' ) as $option ) {
 		delete_option( $option );
 	}
 
 	// Scheduled events.
-	wp_clear_scheduled_hook( 'fqj_process_invalidation_queue' );
-	wp_clear_scheduled_hook( 'fqj_data_migration' );
+	wp_clear_scheduled_hook( 'rfsd_process_invalidation_queue' );
+	wp_clear_scheduled_hook( 'rfsd_data_migration' );
 
 	// Transients. Cached output held only in an external object cache cannot be enumerated and expires on its own.
-	delete_transient( 'fqj_invalidate_queue' );
-	foreach ( array( 'fqj_faq_json_', 'fqj_rejected_urls_', 'fqj_unmatched_urls_' ) as $prefix ) {
+	delete_transient( 'rfsd_invalidate_queue' );
+	foreach ( array( 'rfsd_faq_json_', 'rfsd_rejected_urls_', 'rfsd_unmatched_urls_' ) as $prefix ) {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		$rows = $wpdb->get_col(
 			$wpdb->prepare(
@@ -47,11 +47,11 @@ $fqj_uninstall_site = function () {
 	}
 
 	// FAQ items (opt-in) and their meta.
-	if ( apply_filters( 'fqj_uninstall_delete_faqs', false ) ) {
+	if ( apply_filters( 'rfsd_uninstall_delete_faqs', false ) ) {
 		do {
 			$faq_ids = get_posts(
 				array(
-					'post_type'              => array( 'fqj_faq', 'faq_item' ),
+					'post_type'              => array( 'rfsd_faq', 'faq_item' ),
 					// 'any' skips statuses excluded from search, such as trash.
 					'post_status'            => array_keys( get_post_stati() ),
 					'posts_per_page'         => 100,
@@ -66,28 +66,28 @@ $fqj_uninstall_site = function () {
 			}
 		} while ( ! empty( $faq_ids ) );
 	}
-	delete_post_meta_by_key( 'fqj_assoc_type' );
-	delete_post_meta_by_key( 'fqj_assoc_data_json' );
+	delete_post_meta_by_key( 'rfsd_assoc_type' );
+	delete_post_meta_by_key( 'rfsd_assoc_data_json' );
 
 	// Drop tables.
-	foreach ( array( 'fqj_mappings', 'fqj_queue' ) as $fqj_table ) {
+	foreach ( array( 'rfsd_mappings', 'rfsd_queue' ) as $rfsd_table ) {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
-		$wpdb->query( $wpdb->prepare( 'DROP TABLE IF EXISTS %i', $wpdb->prefix . $fqj_table ) );
+		$wpdb->query( $wpdb->prepare( 'DROP TABLE IF EXISTS %i', $wpdb->prefix . $rfsd_table ) );
 	}
 };
 
 if ( is_multisite() ) {
-	$fqj_site_ids = get_sites(
+	$rfsd_site_ids = get_sites(
 		array(
 			'fields' => 'ids',
 			'number' => 0,
 		)
 	);
-	foreach ( $fqj_site_ids as $fqj_site_id ) {
-		switch_to_blog( $fqj_site_id );
-		$fqj_uninstall_site();
+	foreach ( $rfsd_site_ids as $rfsd_site_id ) {
+		switch_to_blog( $rfsd_site_id );
+		$rfsd_uninstall_site();
 		restore_current_blog();
 	}
 } else {
-	$fqj_uninstall_site();
+	$rfsd_uninstall_site();
 }

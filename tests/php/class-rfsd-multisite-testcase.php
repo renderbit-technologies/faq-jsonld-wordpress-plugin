@@ -2,7 +2,7 @@
 /**
  * Shared helpers for multisite tests.
  *
- * @package FAQ_JSON_LD
+ * @package Renderbit_FAQ_Structured_Data
  */
 
 // phpcs:disable WordPress.Files.FileName
@@ -10,7 +10,7 @@
 /**
  * Base test case for tests that need a multisite network.
  */
-abstract class FQJ_Multisite_TestCase extends FQJ_TestCase {
+abstract class RFSD_Multisite_TestCase extends RFSD_TestCase {
 
 	/**
 	 * Skip on single-site and keep activation inside the test transaction.
@@ -32,7 +32,7 @@ abstract class FQJ_Multisite_TestCase extends FQJ_TestCase {
 	 * @return string
 	 */
 	public function skip_noop_alters( $query ) {
-		if ( preg_match( '/^\s*ALTER TABLE \S*fqj_(mappings|queue) CHANGE COLUMN /', $query ) ) {
+		if ( preg_match( '/^\s*ALTER TABLE \S*rfsd_(mappings|queue) CHANGE COLUMN /', $query ) ) {
 			return '';
 		}
 
@@ -43,7 +43,7 @@ abstract class FQJ_Multisite_TestCase extends FQJ_TestCase {
 	 * Mark the plugin as network-active.
 	 */
 	protected function network_activate_plugin() {
-		update_site_option( 'active_sitewide_plugins', array( plugin_basename( FQJ_PLUGIN_DIR . 'faq-jsonld.php' ) => time() ) );
+		update_site_option( 'active_sitewide_plugins', array( plugin_basename( RFSD_PLUGIN_DIR . 'renderbit-faq-structured-data.php' ) => time() ) );
 	}
 
 	/**
@@ -72,6 +72,6 @@ abstract class FQJ_Multisite_TestCase extends FQJ_TestCase {
 		global $wpdb;
 		$prefix = $wpdb->get_blog_prefix( $site_id );
 
-		return array( $prefix . 'fqj_mappings', $prefix . 'fqj_queue' );
+		return array( $prefix . 'rfsd_mappings', $prefix . 'rfsd_queue' );
 	}
 }

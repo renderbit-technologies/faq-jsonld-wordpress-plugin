@@ -2,7 +2,7 @@
 /**
  * Minimal WP_CLI stand-in that records calls instead of printing them.
  *
- * @package FAQ_JSON_LD
+ * @package Renderbit_FAQ_Structured_Data
  */
 
 // phpcs:disable WordPress.Files.FileName, Generic.Files.OneObjectStructurePerFile

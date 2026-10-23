@@ -2,7 +2,7 @@
 /**
  * Queue management functions.
  *
- * @package FAQ_JSON_LD
+ * @package Renderbit_FAQ_Structured_Data
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -22,9 +22,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @param array $schedules Current cron schedules.
  * @return array Modified schedules.
  */
-function fqj_add_cron_interval( $schedules ) {
-	if ( ! isset( $schedules['fqj_five_minutes'] ) ) {
-		$schedules['fqj_five_minutes'] = array(
+function rfsd_add_cron_interval( $schedules ) {
+	if ( ! isset( $schedules['rfsd_five_minutes'] ) ) {
+		$schedules['rfsd_five_minutes'] = array(
 			'interval' => 5 * MINUTE_IN_SECONDS,
 			'display'  => 'Every 5 Minutes',
 		);
@@ -33,17 +33,17 @@ function fqj_add_cron_interval( $schedules ) {
 	return $schedules;
 }
 // phpcs:ignore WordPress.WP.CronInterval.CronSchedulesInterval -- the queue is meant to drain every 5 minutes.
-add_filter( 'cron_schedules', 'fqj_add_cron_interval' );
+add_filter( 'cron_schedules', 'rfsd_add_cron_interval' );
 
 /**
  * Queue table name, resolved at call time so it follows the current blog on multisite.
  *
  * @return string
  */
-function fqj_queue_table_name() {
+function rfsd_queue_table_name() {
 	global $wpdb;
 
-	return $wpdb->prefix . 'fqj_queue';
+	return $wpdb->prefix . 'rfsd_queue';
 }
 
 /**
@@ -52,7 +52,7 @@ function fqj_queue_table_name() {
  *
  * @return string[]
  */
-function fqj_queue_job_types() {
+function rfsd_queue_job_types() {
 	return array( 'post_type', 'term' );
 }
 
@@ -64,10 +64,10 @@ function fqj_queue_job_types() {
  * @param array  $values Item values (post IDs, post type names or term IDs).
  * @return bool True when at least one valid value was submitted.
  */
-function fqj_queue_add_items( $type, $values ) {
+function rfsd_queue_add_items( $type, $values ) {
 	global $wpdb;
 
-	$is_job = in_array( $type, fqj_queue_job_types(), true );
+	$is_job = in_array( $type, rfsd_queue_job_types(), true );
 	if ( ! $is_job && 'post' !== $type ) {
 		return false;
 	}
@@ -87,7 +87,7 @@ function fqj_queue_add_items( $type, $values ) {
 		return false;
 	}
 
-	$table = fqj_queue_table_name();
+	$table = rfsd_queue_table_name();
 	foreach ( array_chunk( array_values( $clean ), 200 ) as $chunk ) {
 		$placeholders = implode( ',', array_fill( 0, count( $chunk ), '(%s,%s)' ) );
 		$args         = array( $table );
@@ -115,8 +115,8 @@ function fqj_queue_add_items( $type, $values ) {
  * @param array $post_ids Array of post IDs.
  * @return bool True on success.
  */
-function fqj_queue_add_posts( $post_ids ) {
-	return fqj_queue_add_items( 'post', (array) $post_ids );
+function rfsd_queue_add_posts( $post_ids ) {
+	return rfsd_queue_add_items( 'post', (array) $post_ids );
 }
 
 /**
@@ -127,7 +127,7 @@ function fqj_queue_add_posts( $post_ids ) {
  * @param int $limit Max items to pop.
  * @return array
  */
-function fqj_queue_pop_posts( $limit = 100 ) {
+function rfsd_queue_pop_posts( $limit = 100 ) {
 	global $wpdb;
 
 	$limit = (int) $limit;
@@ -135,7 +135,7 @@ function fqj_queue_pop_posts( $limit = 100 ) {
 		return array();
 	}
 
-	$table = fqj_queue_table_name();
+	$table = rfsd_queue_table_name();
 	// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 	$rows = $wpdb->get_results(
 		$wpdb->prepare( "SELECT id, item_value FROM %i WHERE item_type = 'post' ORDER BY id ASC LIMIT %d", $table, $limit ),
@@ -159,10 +159,10 @@ function fqj_queue_pop_posts( $limit = 100 ) {
  *
  * @return int
  */
-function fqj_queue_length() {
+function rfsd_queue_length() {
 	global $wpdb;
 
-	$table = fqj_queue_table_name();
+	$table = rfsd_queue_table_name();
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 	return (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM %i', $table ) );
 }
@@ -170,29 +170,29 @@ function fqj_queue_length() {
 /**
  * Move a leftover pre-table queue (transient) into the queue table, then delete the transient.
  */
-function fqj_migrate_legacy_queue() {
-	$existing = get_transient( 'fqj_invalidate_queue' );
+function rfsd_migrate_legacy_queue() {
+	$existing = get_transient( 'rfsd_invalidate_queue' );
 	if ( false === $existing ) {
 		return;
 	}
 
 	$queue = maybe_unserialize( $existing );
 	if ( is_array( $queue ) && ! empty( $queue ) ) {
-		fqj_queue_add_posts( $queue );
+		rfsd_queue_add_posts( $queue );
 	}
-	delete_transient( 'fqj_invalidate_queue' );
+	delete_transient( 'rfsd_invalidate_queue' );
 }
 
 /**
  * Save an option without autoload (the log and last-run timestamp are only read on the Health page).
  *
  * Note that update_option() only applies the autoload argument to existing rows from WP 6.4, so an already
- * autoloaded row is switched explicitly (see fqj_unautoload_options()).
+ * autoloaded row is switched explicitly (see rfsd_unautoload_options()).
  *
  * @param string $name  Option name.
  * @param mixed  $value Value.
  */
-function fqj_update_option_no_autoload( $name, $value ) {
+function rfsd_update_option_no_autoload( $name, $value ) {
 	if ( false === get_option( $name ) ) {
 		add_option( $name, $value, '', false );
 		return;
@@ -203,10 +203,10 @@ function fqj_update_option_no_autoload( $name, $value ) {
 /**
  * Turn autoload off for the plugin's rarely read options, whatever the WP version.
  */
-function fqj_unautoload_options() {
+function rfsd_unautoload_options() {
 	global $wpdb;
 
-	foreach ( array( 'fqj_invalidation_log', 'fqj_last_queue_run' ) as $name ) {
+	foreach ( array( 'rfsd_invalidation_log', 'rfsd_last_queue_run' ) as $name ) {
 		if ( false === get_option( $name ) ) {
 			continue;
 		}
@@ -224,30 +224,30 @@ function fqj_unautoload_options() {
 /**
  * Make sure the queue worker is scheduled. Cron events can be lost (cron option rewrites, migrations).
  */
-function fqj_ensure_cron_scheduled() {
-	if ( ! wp_next_scheduled( 'fqj_process_invalidation_queue' ) ) {
-		wp_schedule_event( time() + 60, 'fqj_five_minutes', 'fqj_process_invalidation_queue' );
+function rfsd_ensure_cron_scheduled() {
+	if ( ! wp_next_scheduled( 'rfsd_process_invalidation_queue' ) ) {
+		wp_schedule_event( time() + 60, 'rfsd_five_minutes', 'rfsd_process_invalidation_queue' );
 	}
 }
-add_action( 'init', 'fqj_ensure_cron_scheduled' );
+add_action( 'init', 'rfsd_ensure_cron_scheduled' );
 
 /**
  * Log an invalidation worker run.
- * Stores an entry into option 'fqj_invalidation_log' as array of entries:
+ * Stores an entry into option 'rfsd_invalidation_log' as array of entries:
  * [ [ 'ts' => 12345, 'processed' => n, 'sample' => [ids] ], ... ]
  * Keeps only last 200 entries (configurable later). A run that processed nothing only updates the last-run time.
  *
  * @param int   $processed_count Number processed.
  * @param array $sample_ids Sample IDs.
  */
-function fqj_log_invalidation_run( $processed_count, $sample_ids = array() ) {
+function rfsd_log_invalidation_run( $processed_count, $sample_ids = array() ) {
 	$processed_count = intval( $processed_count );
-	fqj_update_option_no_autoload( 'fqj_last_queue_run', time() );
+	rfsd_update_option_no_autoload( 'rfsd_last_queue_run', time() );
 	if ( $processed_count <= 0 ) {
 		return;
 	}
 
-	$opt_name = 'fqj_invalidation_log';
+	$opt_name = 'rfsd_invalidation_log';
 	$log      = get_option( $opt_name, array() );
 	if ( ! is_array( $log ) ) {
 		$log = array();
@@ -267,23 +267,23 @@ function fqj_log_invalidation_run( $processed_count, $sample_ids = array() ) {
 		$log = array_slice( $log, 0, $max );
 	}
 
-	fqj_update_option_no_autoload( $opt_name, $log );
+	rfsd_update_option_no_autoload( $opt_name, $log );
 }
 
 /**
  * Expand queued post_type/term jobs into per-post cache deletions, within a post budget.
  *
- * Each job walks the posts its mapping covers (fqj_posts_covered_by_mapping()) in ascending order from its
+ * Each job walks the posts its mapping covers (rfsd_posts_covered_by_mapping()) in ascending order from its
  * stored cursor and is deleted once exhausted.
  *
  * @param int $budget Maximum number of posts to process.
  * @return int[] IDs processed.
  */
-function fqj_queue_process_jobs( $budget ) {
+function rfsd_queue_process_jobs( $budget ) {
 	global $wpdb;
 
 	$done  = array();
-	$table = fqj_queue_table_name();
+	$table = rfsd_queue_table_name();
 
 	$done_count = 0;
 	while ( $done_count < $budget ) {
@@ -299,7 +299,7 @@ function fqj_queue_process_jobs( $budget ) {
 
 		$remaining = $budget - $done_count;
 		$cursor    = (int) $job['job_cursor'];
-		$ids       = fqj_posts_covered_by_mapping(
+		$ids       = rfsd_posts_covered_by_mapping(
 			array(
 				'type'  => $job['item_type'],
 				'value' => $job['item_value'],
@@ -309,7 +309,7 @@ function fqj_queue_process_jobs( $budget ) {
 		);
 
 		foreach ( $ids as $pid ) {
-			delete_transient( fqj_cache_key( $pid ) );
+			delete_transient( rfsd_cache_key( $pid ) );
 		}
 		$done       = array_merge( $done, $ids );
 		$done_count = count( $done );
@@ -349,14 +349,14 @@ function fqj_queue_process_jobs( $budget ) {
  * @param int $limit Maximum posts to process.
  * @return int[] Post IDs processed.
  */
-function fqj_queue_process_batch( $limit ) {
+function rfsd_queue_process_batch( $limit ) {
 	$limit = max( 1, (int) $limit );
-	$ids   = fqj_queue_pop_posts( $limit );
+	$ids   = rfsd_queue_pop_posts( $limit );
 	foreach ( $ids as $pid ) {
-		delete_transient( fqj_cache_key( $pid ) );
+		delete_transient( rfsd_cache_key( $pid ) );
 	}
 	if ( count( $ids ) < $limit ) {
-		$ids = array_merge( $ids, fqj_queue_process_jobs( $limit - count( $ids ) ) );
+		$ids = array_merge( $ids, rfsd_queue_process_jobs( $limit - count( $ids ) ) );
 	}
 
 	return $ids;
@@ -365,14 +365,14 @@ function fqj_queue_process_batch( $limit ) {
 /**
  * Cron worker: processes up to batch_size posts from the queue
  */
-function fqj_process_invalidation_queue_cron() {
-	$opts       = get_option( FQJ_OPTION_KEY );
+function rfsd_process_invalidation_queue_cron() {
+	$opts       = get_option( RFSD_OPTION_KEY );
 	$batch_size = isset( $opts['batch_size'] ) ? intval( $opts['batch_size'] ) : 500;
 
-	$processed = fqj_queue_process_batch( $batch_size );
-	fqj_log_invalidation_run( count( $processed ), array_slice( $processed, 0, 20 ) );
+	$processed = rfsd_queue_process_batch( $batch_size );
+	rfsd_log_invalidation_run( count( $processed ), array_slice( $processed, 0, 20 ) );
 }
-add_action( 'fqj_process_invalidation_queue', 'fqj_process_invalidation_queue_cron' );
+add_action( 'rfsd_process_invalidation_queue', 'rfsd_process_invalidation_queue_cron' );
 
 /**
  * Immediate queue processor (used by WP-CLI, admin AJAX or ad-hoc)
@@ -381,13 +381,13 @@ add_action( 'fqj_process_invalidation_queue', 'fqj_process_invalidation_queue_cr
  * @param int $limit Max items.
  * @return int
  */
-function fqj_process_invalidation_queue_now( $limit = null ) {
-	$opts       = get_option( FQJ_OPTION_KEY );
+function rfsd_process_invalidation_queue_now( $limit = null ) {
+	$opts       = get_option( RFSD_OPTION_KEY );
 	$batch_size = isset( $opts['batch_size'] ) ? intval( $opts['batch_size'] ) : 500;
 	$limit      = $limit ? intval( $limit ) : $batch_size;
 
-	$processed = fqj_queue_process_batch( $limit );
-	fqj_log_invalidation_run( count( $processed ), array_slice( $processed, 0, 20 ) );
+	$processed = rfsd_queue_process_batch( $limit );
+	rfsd_log_invalidation_run( count( $processed ), array_slice( $processed, 0, 20 ) );
 
 	return count( $processed );
 }
@@ -395,25 +395,25 @@ function fqj_process_invalidation_queue_now( $limit = null ) {
 /**
  * Admin notice on the plugin's own screens (FAQ list and editor, Health, Settings): show the queue length to admins.
  */
-function fqj_admin_queue_notice() {
+function rfsd_admin_queue_notice() {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		return;
 	}
 	$screen    = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
-	$own_pages = array( FQJ_POST_TYPE . '_page_fqj-health', FQJ_POST_TYPE . '_page_fqj-settings' );
-	if ( ! $screen || ( FQJ_POST_TYPE !== $screen->post_type && ! in_array( $screen->id, $own_pages, true ) ) ) {
+	$own_pages = array( RFSD_POST_TYPE . '_page_rfsd-health', RFSD_POST_TYPE . '_page_rfsd-settings' );
+	if ( ! $screen || ( RFSD_POST_TYPE !== $screen->post_type && ! in_array( $screen->id, $own_pages, true ) ) ) {
 		return;
 	}
-	$len = fqj_queue_length();
+	$len = rfsd_queue_length();
 	if ( $len > 0 ) {
 		printf(
 			'<div class="notice notice-info"><p>%s</p></div>',
 			sprintf(
 				/* translators: %s: number of queued items. */
-				esc_html( _n( 'FAQ JSON-LD queue: %s item pending invalidation. The background worker (WP-Cron) will process it in batches.', 'FAQ JSON-LD queue: %s items pending invalidation. The background worker (WP-Cron) will process them in batches.', $len, 'faq-jsonld' ) ),
+				esc_html( _n( 'FAQ Structured Data queue: %s item pending invalidation. The background worker (WP-Cron) will process it in batches.', 'FAQ Structured Data queue: %s items pending invalidation. The background worker (WP-Cron) will process them in batches.', $len, 'renderbit-faq-structured-data' ) ),
 				'<strong>' . intval( $len ) . '</strong>'
 			)
 		);
 	}
 }
-add_action( 'admin_notices', 'fqj_admin_queue_notice' );
+add_action( 'admin_notices', 'rfsd_admin_queue_notice' );

@@ -2,13 +2,13 @@
 /**
  * Data migration 3: URL associations that only matched through the old `post` row.
  *
- * @package FAQ_JSON_LD
+ * @package Renderbit_FAQ_Structured_Data
  */
 
 /**
  * URL migration tests.
  */
-class Test_FQJ_URL_Migration extends FQJ_TestCase {
+class Test_RFSD_URL_Migration extends RFSD_TestCase {
 
 	/**
 	 * Create a FAQ saved before data version 3: its URLs plus the absolute `url` rows and the `post` rows
@@ -21,7 +21,7 @@ class Test_FQJ_URL_Migration extends FQJ_TestCase {
 	 */
 	protected function create_legacy_faq( $urls, $post_ids, $extra = array() ) {
 		$faq = $this->create_faq( 'Legacy?', 'Yes.' );
-		update_post_meta( $faq, 'fqj_assoc_data_json', wp_json_encode( array_merge( $extra, array( 'urls' => $urls ) ) ) );
+		update_post_meta( $faq, 'rfsd_assoc_data_json', wp_json_encode( array_merge( $extra, array( 'urls' => $urls ) ) ) );
 
 		$rows = array();
 		foreach ( $urls as $url ) {
@@ -36,7 +36,7 @@ class Test_FQJ_URL_Migration extends FQJ_TestCase {
 				'value' => $post_id,
 			);
 		}
-		fqj_insert_mappings( $faq, $rows );
+		rfsd_insert_mappings( $faq, $rows );
 
 		return $faq;
 	}
@@ -45,9 +45,9 @@ class Test_FQJ_URL_Migration extends FQJ_TestCase {
 	 * Run the migration from data version 2 to completion.
 	 */
 	protected function migrate() {
-		update_option( FQJ_DATA_VERSION_OPTION, '2' );
-		fqj_run_data_migration();
-		$this->assertSame( FQJ_DATA_VERSION, get_option( FQJ_DATA_VERSION_OPTION ) );
+		update_option( RFSD_DATA_VERSION_OPTION, '2' );
+		rfsd_run_data_migration();
+		$this->assertSame( RFSD_DATA_VERSION, get_option( RFSD_DATA_VERSION_OPTION ) );
 	}
 
 	/**
@@ -57,7 +57,7 @@ class Test_FQJ_URL_Migration extends FQJ_TestCase {
 	 * @return string[]
 	 */
 	protected function saved_urls( $faq_id ) {
-		$payload = json_decode( get_post_meta( $faq_id, 'fqj_assoc_data_json', true ), true );
+		$payload = json_decode( get_post_meta( $faq_id, 'rfsd_assoc_data_json', true ), true );
 
 		return $payload['urls'];
 	}
@@ -68,7 +68,7 @@ class Test_FQJ_URL_Migration extends FQJ_TestCase {
 	 * @return array
 	 */
 	protected function report() {
-		return get_option( FQJ_URL_MIGRATION_REPORT_OPTION, array() );
+		return get_option( RFSD_URL_MIGRATION_REPORT_OPTION, array() );
 	}
 
 	public function test_shortlink_is_rewritten_to_permalink() {
@@ -79,7 +79,7 @@ class Test_FQJ_URL_Migration extends FQJ_TestCase {
 		$this->migrate();
 
 		$this->assertSame( array( get_permalink( $post ) ), $this->saved_urls( $faq ) );
-		$this->assertSame( array( $faq ), fqj_faq_ids_for_post( $post ) );
+		$this->assertSame( array( $faq ), rfsd_faq_ids_for_post( $post ) );
 		$this->assertSame(
 			array(
 				array(
@@ -105,11 +105,11 @@ class Test_FQJ_URL_Migration extends FQJ_TestCase {
 		$slug_url = home_url( '/welcome/' );
 		$faq      = $this->create_legacy_faq( array( $slug_url ), array( $page ) );
 
-		$this->assertSame( 0, fqj_post_for_url( $slug_url ) );
+		$this->assertSame( 0, rfsd_post_for_url( $slug_url ) );
 		$this->migrate();
 
 		$this->assertSame( array( home_url( '/' ) ), $this->saved_urls( $faq ) );
-		$this->assertSame( array( $faq ), fqj_faq_ids_for_post( $page ) );
+		$this->assertSame( array( $faq ), rfsd_faq_ids_for_post( $page ) );
 	}
 
 	public function test_renamed_post_replaces_the_single_dead_url() {
@@ -121,8 +121,8 @@ class Test_FQJ_URL_Migration extends FQJ_TestCase {
 		$this->migrate();
 
 		$this->assertSame( array( get_permalink( $post ), get_permalink( $live ) ), $this->saved_urls( $faq ) );
-		$this->assertSame( array( $faq ), fqj_faq_ids_for_post( $post ) );
-		$this->assertSame( array( $faq ), fqj_faq_ids_for_post( $live ) );
+		$this->assertSame( array( $faq ), rfsd_faq_ids_for_post( $post ) );
+		$this->assertSame( array( $faq ), rfsd_faq_ids_for_post( $live ) );
 		$this->assertSame( $dead, $this->report()[0]['old'] );
 		$this->assertSame( get_permalink( $post ), $this->report()[0]['new'] );
 	}
@@ -137,8 +137,8 @@ class Test_FQJ_URL_Migration extends FQJ_TestCase {
 		$this->migrate();
 
 		$this->assertSame( array( $dead1, $dead2, get_permalink( $a ), get_permalink( $b ) ), $this->saved_urls( $faq ) );
-		$this->assertSame( array( $faq ), fqj_faq_ids_for_post( $a ) );
-		$this->assertSame( array( $faq ), fqj_faq_ids_for_post( $b ) );
+		$this->assertSame( array( $faq ), rfsd_faq_ids_for_post( $a ) );
+		$this->assertSame( array( $faq ), rfsd_faq_ids_for_post( $b ) );
 		$this->assertSame( array( '', '' ), wp_list_pluck( $this->report(), 'old' ) );
 	}
 
@@ -186,7 +186,7 @@ class Test_FQJ_URL_Migration extends FQJ_TestCase {
 
 		$this->assertSame( array( $shortlink ), $this->saved_urls( $faq ) );
 		$this->assertSame( array(), $this->report() );
-		$this->assertSame( array(), fqj_faq_ids_for_post( $post ) );
+		$this->assertSame( array(), rfsd_faq_ids_for_post( $post ) );
 	}
 
 	public function test_plain_permalinks_keep_query_urls_and_rewrite_old_pretty_ones() {
@@ -201,7 +201,7 @@ class Test_FQJ_URL_Migration extends FQJ_TestCase {
 
 		$this->assertSame( array( $plain ), $this->saved_urls( $faq ) );
 		$this->assertSame( array( $plain ), $this->saved_urls( $old ) );
-		$this->assertSame( array( $faq, $old ), fqj_faq_ids_for_post( $post ) );
+		$this->assertSame( array( $faq, $old ), rfsd_faq_ids_for_post( $post ) );
 		$this->assertCount( 1, $this->report() );
 	}
 
@@ -209,9 +209,9 @@ class Test_FQJ_URL_Migration extends FQJ_TestCase {
 		$post = self::factory()->post->create( array( 'post_name' => 'hello' ) );
 		$url  = home_url( '/?p=' . $post );
 		$faq  = $this->create_legacy_faq( array( $url ), array( $post ) );
-		update_option( FQJ_DATA_VERSION_OPTION, '3' );
+		update_option( RFSD_DATA_VERSION_OPTION, '3' );
 
-		fqj_run_data_migration();
+		rfsd_run_data_migration();
 
 		$this->assertSame( array( $url ), $this->saved_urls( $faq ) );
 	}
@@ -223,37 +223,37 @@ class Test_FQJ_URL_Migration extends FQJ_TestCase {
 		$this->create_legacy_faq( array( home_url( '/?p=' . $post ) ), array( $post ) );
 		$this->migrate();
 
-		set_current_screen( 'edit-fqj_faq' );
+		set_current_screen( 'edit-rfsd_faq' );
 		wp_set_current_user( $author );
 		ob_start();
-		fqj_url_migration_report_notice();
+		rfsd_url_migration_report_notice();
 		$this->assertSame( '', ob_get_clean(), 'Hidden from users who cannot edit others\' posts.' );
 
 		wp_set_current_user( $editor );
 		ob_start();
-		fqj_url_migration_report_notice();
+		rfsd_url_migration_report_notice();
 		$html = ob_get_clean();
 		$this->assertStringContainsString( esc_html( home_url( '/?p=' . $post ) ), $html );
-		$this->assertStringContainsString( 'fqj_dismiss_url_migration_report', $html );
+		$this->assertStringContainsString( 'rfsd_dismiss_url_migration_report', $html );
 
 		set_current_screen( 'edit-post' );
 		ob_start();
-		fqj_url_migration_report_notice();
+		rfsd_url_migration_report_notice();
 		$this->assertSame( '', ob_get_clean(), 'Only on the FAQ list screen.' );
 
 		wp_set_current_user( $author );
-		$_REQUEST['_wpnonce'] = wp_create_nonce( 'fqj_dismiss_url_migration_report' );
+		$_REQUEST['_wpnonce'] = wp_create_nonce( 'rfsd_dismiss_url_migration_report' );
 		try {
-			fqj_dismiss_url_migration_report();
+			rfsd_dismiss_url_migration_report();
 			$this->fail( 'Authors cannot dismiss the report.' );
 		} catch ( WPDieException $e ) {
-			$this->assertNotEmpty( get_option( FQJ_URL_MIGRATION_REPORT_OPTION ) );
+			$this->assertNotEmpty( get_option( RFSD_URL_MIGRATION_REPORT_OPTION ) );
 		}
 
 		wp_set_current_user( $editor );
-		$_REQUEST['_wpnonce'] = wp_create_nonce( 'fqj_dismiss_url_migration_report' );
-		fqj_dismiss_url_migration_report();
-		$this->assertFalse( get_option( FQJ_URL_MIGRATION_REPORT_OPTION ) );
+		$_REQUEST['_wpnonce'] = wp_create_nonce( 'rfsd_dismiss_url_migration_report' );
+		rfsd_dismiss_url_migration_report();
+		$this->assertFalse( get_option( RFSD_URL_MIGRATION_REPORT_OPTION ) );
 		set_current_screen( 'front' );
 	}
 
@@ -264,7 +264,7 @@ class Test_FQJ_URL_Migration extends FQJ_TestCase {
 
 		global $wpdb;
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
-		$autoload = $wpdb->get_var( $wpdb->prepare( "SELECT autoload FROM {$wpdb->options} WHERE option_name = %s", FQJ_URL_MIGRATION_REPORT_OPTION ) );
+		$autoload = $wpdb->get_var( $wpdb->prepare( "SELECT autoload FROM {$wpdb->options} WHERE option_name = %s", RFSD_URL_MIGRATION_REPORT_OPTION ) );
 		$this->assertContains( $autoload, array( 'no', 'off' ) );
 	}
 }

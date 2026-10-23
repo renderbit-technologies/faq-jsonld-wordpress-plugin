@@ -1,4 +1,4 @@
-=== FAQ JSON-LD Manager ===
+=== Renderbit FAQ Structured Data ===
 Contributors: renderbit
 Tags: faq, schema, json-ld, structured data, seo
 Requires at least: 6.5
@@ -12,7 +12,7 @@ Manage FAQ items as a custom post type and output FAQPage JSON-LD on the posts a
 
 == Description ==
 
-FAQ JSON-LD Manager keeps your FAQs in one place and adds schema.org `FAQPage` structured data to the content they belong to. Write each question and answer once as an FAQ item, then attach it to the posts, post types, taxonomy terms or URLs where it should appear, or make it global.
+Renderbit FAQ Structured Data keeps your FAQs in one place and adds schema.org `FAQPage` structured data to the content they belong to. Write each question and answer once as an FAQ item, then attach it to the posts, post types, taxonomy terms or URLs where it should appear, or make it global.
 
 Built for large sites:
 
@@ -30,21 +30,21 @@ Built for large sites:
 
 = WP-CLI commands =
 
-* `wp fqj purge-transients` purges all cached FAQ JSON-LD.
-* `wp fqj process-queue [--limit=N]` processes the invalidation queue.
-* `wp fqj queue-info` shows the number of pending queue items.
+* `wp rfsd purge-transients` purges all cached FAQ JSON-LD.
+* `wp rfsd process-queue [--limit=N]` processes the invalidation queue.
+* `wp rfsd queue-info` shows the number of pending queue items.
 
 = Developer filters =
 
-* `fqj_question_text( $text, $faq_post )` filters the plain-text question.
-* `fqj_answer_text( $text, $faq_post )` filters the plain-text answer.
-* `fqj_uninstall_delete_faqs` (default `false`): return `true` to delete FAQ posts when the plugin is deleted.
+* `rfsd_question_text( $text, $faq_post )` filters the plain-text question.
+* `rfsd_answer_text( $text, $faq_post )` filters the plain-text answer.
+* `rfsd_uninstall_delete_faqs` (default `false`): return `true` to delete FAQ posts when the plugin is deleted.
 
 Development happens on [GitHub](https://github.com/renderbit-technologies/faq-jsonld-wordpress-plugin).
 
 == Installation ==
 
-1. Install the plugin from Plugins > Add New, or upload the `faq-jsonld` folder to `wp-content/plugins/`.
+1. Install the plugin from Plugins > Add New, or upload the `renderbit-faq-structured-data` folder to `wp-content/plugins/`.
 2. Activate it. The mapping table is created automatically.
 3. Add questions under FAQ Items and use the association box on each item to choose where it appears.
 4. Adjust cache lifetime and batch size under FAQ Items > Settings.
@@ -65,12 +65,12 @@ Yes. "Purge all" bumps a cache generation number instead of deleting transients 
 
 = What happens when I delete the plugin? =
 
-Its options, transients, scheduled events, post meta and mapping table are removed. FAQ item posts are kept unless you enable the `fqj_uninstall_delete_faqs` filter.
+Its options, transients, scheduled events, post meta and mapping table are removed. FAQ item posts are kept unless you enable the `rfsd_uninstall_delete_faqs` filter.
 
 == Changelog ==
 
 = 3.1.1 =
-* FAQ items now use the prefixed post type `fqj_faq` instead of `faq_item`, so they cannot collide with another plugin's FAQ post type. Existing FAQs are moved over automatically on upgrade; links or code that use `post_type=faq_item` need updating.
+* FAQ items now use the prefixed post type `rfsd_faq` instead of `faq_item`, so they cannot collide with another plugin's FAQ post type. Existing FAQs are moved over automatically on upgrade; links or code that use `post_type=faq_item` need updating.
 * The invalidation queue notice only appears on the plugin's own screens (FAQ list and editor, Health, Settings) instead of on every admin page, and can be translated.
 * Updated the bundled Select2 to 4.1.0.
 
@@ -98,7 +98,7 @@ Its options, transients, scheduled events, post meta and mapping table are remov
 == Upgrade Notice ==
 
 = 3.1.1 =
-FAQ items move to the prefixed post type `fqj_faq` automatically. Update any bookmarks or custom code that use `post_type=faq_item`.
+FAQ items move to the prefixed post type `rfsd_faq` automatically. Update any bookmarks or custom code that use `post_type=faq_item`.
 
 = 3.1.0 =
 URL associations now match the URL itself. The upgrade rewrites URLs that only matched the old way and lists every change on the FAQ list screen.

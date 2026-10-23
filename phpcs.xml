@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
-<ruleset name="FAQ JSON-LD">
-	<description>Coding standard for the FAQ JSON-LD WordPress plugin: WordPress Coding Standards.</description>
+<ruleset name="Renderbit FAQ Structured Data">
+	<description>Coding standard for the Renderbit FAQ Structured Data WordPress plugin: WordPress Coding Standards.</description>
 
-	<file>faq-jsonld.php</file>
+	<file>renderbit-faq-structured-data.php</file>
 	<file>uninstall.php</file>
 	<file>includes</file>
 	<file>bin</file>
@@ -17,7 +17,7 @@
 	<rule ref="WordPress.WP.I18n">
 		<properties>
 			<property name="text_domain" type="array">
-				<element value="faq-jsonld"/>
+				<element value="renderbit-faq-structured-data"/>
 			</property>
 		</properties>
 	</rule>

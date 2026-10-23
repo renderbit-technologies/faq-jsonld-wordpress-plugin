@@ -2,13 +2,13 @@
 /**
  * AJAX endpoints for the meta box and Health page.
  *
- * @package FAQ_JSON_LD
+ * @package Renderbit_FAQ_Structured_Data
  */
 
 /**
  * AJAX tests.
  */
-class Test_FQJ_Ajax extends WP_Ajax_UnitTestCase {
+class Test_RFSD_Ajax extends WP_Ajax_UnitTestCase {
 
 	public function set_up() {
 		parent::set_up();
@@ -80,9 +80,9 @@ class Test_FQJ_Ajax extends WP_Ajax_UnitTestCase {
 		);
 		self::factory()->post->create( array( 'post_title' => 'Unrelated' ) );
 
-		$this->nonce( 'fqj_admin_nonce' );
+		$this->nonce( 'rfsd_admin_nonce' );
 		$_GET['q'] = 'Shipping';
-		$results   = $this->call( 'fqj_search_posts' );
+		$results   = $this->call( 'rfsd_search_posts' );
 
 		$this->assertEqualSets( array( $match, $page ), wp_list_pluck( $results, 'id' ) );
 		$by_id = array_column( $results, 'text', 'id' );
@@ -90,30 +90,51 @@ class Test_FQJ_Ajax extends WP_Ajax_UnitTestCase {
 	}
 
 	public function test_search_posts_includes_custom_public_post_types_only() {
-		register_post_type( 'fqj_book', array( 'public' => true ) );
-		register_post_type( 'fqj_secret', array( 'public' => false ) );
-		$book   = self::factory()->post->create( array( 'post_title' => 'Zebra book', 'post_type' => 'fqj_book' ) );
-		self::factory()->post->create( array( 'post_title' => 'Zebra secret', 'post_type' => 'fqj_secret' ) );
-		self::factory()->post->create( array( 'post_title' => 'Zebra faq', 'post_type' => 'fqj_faq' ) );
-		$attach = self::factory()->post->create( array( 'post_title' => 'Zebra file', 'post_type' => 'attachment', 'post_status' => 'inherit' ) );
+		register_post_type( 'rfsd_book', array( 'public' => true ) );
+		register_post_type( 'rfsd_secret', array( 'public' => false ) );
+		$book = self::factory()->post->create(
+			array(
+				'post_title' => 'Zebra book',
+				'post_type'  => 'rfsd_book',
+			)
+		);
+		self::factory()->post->create(
+			array(
+				'post_title' => 'Zebra secret',
+				'post_type'  => 'rfsd_secret',
+			)
+		);
+		self::factory()->post->create(
+			array(
+				'post_title' => 'Zebra faq',
+				'post_type'  => 'rfsd_faq',
+			)
+		);
+		$attach = self::factory()->post->create(
+			array(
+				'post_title'  => 'Zebra file',
+				'post_type'   => 'attachment',
+				'post_status' => 'inherit',
+			)
+		);
 
-		$this->nonce( 'fqj_admin_nonce' );
+		$this->nonce( 'rfsd_admin_nonce' );
 		$_GET['q'] = 'Zebra';
-		$ids       = wp_list_pluck( $this->call( 'fqj_search_posts' ), 'id' );
-		unregister_post_type( 'fqj_book' );
-		unregister_post_type( 'fqj_secret' );
+		$ids       = wp_list_pluck( $this->call( 'rfsd_search_posts' ), 'id' );
+		unregister_post_type( 'rfsd_book' );
+		unregister_post_type( 'rfsd_secret' );
 
 		$this->assertSame( array( $book ), $ids );
 		$this->assertNotContains( $attach, $ids );
 	}
 
 	public function test_search_posts_with_empty_query() {
-		$this->nonce( 'fqj_admin_nonce' );
-		$this->assertSame( array(), $this->call( 'fqj_search_posts' ) );
+		$this->nonce( 'rfsd_admin_nonce' );
+		$this->assertSame( array(), $this->call( 'rfsd_search_posts' ) );
 	}
 
 	public function test_search_posts_rejects_bad_nonce() {
-		$this->assert_rejects_bad_nonce( 'fqj_search_posts' );
+		$this->assert_rejects_bad_nonce( 'rfsd_search_posts' );
 	}
 
 	public function test_search_terms_across_public_taxonomies() {
@@ -121,9 +142,9 @@ class Test_FQJ_Ajax extends WP_Ajax_UnitTestCase {
 		$tag = self::factory()->tag->create( array( 'name' => 'Returns policy' ) );
 		self::factory()->category->create( array( 'name' => 'Other' ) );
 
-		$this->nonce( 'fqj_admin_nonce' );
+		$this->nonce( 'rfsd_admin_nonce' );
 		$_GET['q'] = 'Return';
-		$results   = $this->call( 'fqj_search_terms' );
+		$results   = $this->call( 'rfsd_search_terms' );
 
 		$by_id = array_column( $results, 'text', 'id' );
 		$this->assertCount( 2, $by_id );
@@ -132,29 +153,29 @@ class Test_FQJ_Ajax extends WP_Ajax_UnitTestCase {
 	}
 
 	public function test_search_terms_with_empty_query() {
-		$this->nonce( 'fqj_admin_nonce' );
-		$this->assertSame( array(), $this->call( 'fqj_search_terms' ) );
+		$this->nonce( 'rfsd_admin_nonce' );
+		$this->assertSame( array(), $this->call( 'rfsd_search_terms' ) );
 	}
 
 	public function test_search_terms_rejects_bad_nonce() {
-		$this->assert_rejects_bad_nonce( 'fqj_search_terms' );
+		$this->assert_rejects_bad_nonce( 'rfsd_search_terms' );
 	}
 
 	public function test_get_post_types_lists_public_types() {
-		$this->nonce( 'fqj_admin_nonce' );
-		$results = $this->call( 'fqj_get_post_types' );
+		$this->nonce( 'rfsd_admin_nonce' );
+		$results = $this->call( 'rfsd_get_post_types' );
 		$names   = wp_list_pluck( $results, 'name' );
 
 		$this->assertContains( 'post', $names );
 		$this->assertContains( 'page', $names );
-		$this->assertNotContains( 'fqj_faq', $names, 'FAQ items are not public.' );
+		$this->assertNotContains( 'rfsd_faq', $names, 'FAQ items are not public.' );
 
 		$by_name = array_column( $results, 'label', 'name' );
 		$this->assertSame( 'Page', $by_name['page'] );
 	}
 
 	public function test_get_post_types_rejects_bad_nonce() {
-		$this->assert_rejects_bad_nonce( 'fqj_get_post_types' );
+		$this->assert_rejects_bad_nonce( 'rfsd_get_post_types' );
 	}
 
 	/**
@@ -164,7 +185,7 @@ class Test_FQJ_Ajax extends WP_Ajax_UnitTestCase {
 	 */
 	protected function assert_lookup_denied_to_subscriber( $action ) {
 		$this->_setRole( 'subscriber' );
-		$this->nonce( 'fqj_admin_nonce' );
+		$this->nonce( 'rfsd_admin_nonce' );
 		$_GET['q'] = 'a';
 
 		$resp = $this->call( $action );
@@ -174,49 +195,49 @@ class Test_FQJ_Ajax extends WP_Ajax_UnitTestCase {
 
 	public function test_search_posts_requires_edit_posts() {
 		self::factory()->post->create( array( 'post_title' => 'Alpha' ) );
-		$this->assert_lookup_denied_to_subscriber( 'fqj_search_posts' );
+		$this->assert_lookup_denied_to_subscriber( 'rfsd_search_posts' );
 	}
 
 	public function test_search_terms_requires_edit_posts() {
-		$this->assert_lookup_denied_to_subscriber( 'fqj_search_terms' );
+		$this->assert_lookup_denied_to_subscriber( 'rfsd_search_terms' );
 	}
 
 	public function test_get_post_types_requires_edit_posts() {
-		$this->assert_lookup_denied_to_subscriber( 'fqj_get_post_types' );
+		$this->assert_lookup_denied_to_subscriber( 'rfsd_get_post_types' );
 	}
 
 	public function test_search_posts_allows_editors() {
 		$id = self::factory()->post->create( array( 'post_title' => 'Alpha' ) );
 		$this->_setRole( 'editor' );
-		$this->nonce( 'fqj_admin_nonce' );
+		$this->nonce( 'rfsd_admin_nonce' );
 		$_GET['q'] = 'Alpha';
 
-		$this->assertSame( array( $id ), wp_list_pluck( $this->call( 'fqj_search_posts' ), 'id' ) );
+		$this->assertSame( array( $id ), wp_list_pluck( $this->call( 'rfsd_search_posts' ), 'id' ) );
 	}
 
 	public function test_search_terms_allows_editors() {
 		$cat = self::factory()->category->create( array( 'name' => 'Alpha' ) );
 		$this->_setRole( 'editor' );
-		$this->nonce( 'fqj_admin_nonce' );
+		$this->nonce( 'rfsd_admin_nonce' );
 		$_GET['q'] = 'Alpha';
 
-		$this->assertContains( $cat, wp_list_pluck( $this->call( 'fqj_search_terms' ), 'id' ) );
+		$this->assertContains( $cat, wp_list_pluck( $this->call( 'rfsd_search_terms' ), 'id' ) );
 	}
 
 	public function test_get_post_types_allows_editors() {
 		$this->_setRole( 'editor' );
-		$this->nonce( 'fqj_admin_nonce' );
+		$this->nonce( 'rfsd_admin_nonce' );
 
-		$this->assertContains( 'post', wp_list_pluck( $this->call( 'fqj_get_post_types' ), 'name' ) );
+		$this->assertContains( 'post', wp_list_pluck( $this->call( 'rfsd_get_post_types' ), 'name' ) );
 	}
 
 	public function test_process_queue_now() {
-		set_transient( fqj_cache_key( 11 ), 'x' );
-		fqj_queue_add_posts( array( 11, 12, 13 ) );
+		set_transient( rfsd_cache_key( 11 ), 'x' );
+		rfsd_queue_add_posts( array( 11, 12, 13 ) );
 
-		$this->nonce( 'fqj_health_nonce' );
+		$this->nonce( 'rfsd_health_nonce' );
 		$_POST['limit'] = '2';
-		$resp           = $this->call( 'fqj_process_queue_now' );
+		$resp           = $this->call( 'rfsd_process_queue_now' );
 
 		$this->assertTrue( $resp['success'] );
 		$this->assertSame( 2, $resp['data']['processed'] );
@@ -224,29 +245,29 @@ class Test_FQJ_Ajax extends WP_Ajax_UnitTestCase {
 		$this->assertGreaterThan( 0, $resp['data']['last_run'] );
 		$this->assertSame( wp_date( 'Y-m-d H:i:s', $resp['data']['last_run'] ), substr( $resp['data']['last_run_human'], 0, 19 ) );
 		$this->assertStringEndsWith( ' ago)', $resp['data']['last_run_human'] );
-		$this->assertFalse( get_transient( fqj_cache_key( 11 ) ) );
+		$this->assertFalse( get_transient( rfsd_cache_key( 11 ) ) );
 	}
 
 	public function test_process_queue_now_requires_manage_options() {
 		$this->_setRole( 'editor' );
-		$this->nonce( 'fqj_health_nonce' );
-		fqj_queue_add_posts( array( 1 ) );
+		$this->nonce( 'rfsd_health_nonce' );
+		rfsd_queue_add_posts( array( 1 ) );
 
-		$resp = $this->call( 'fqj_process_queue_now' );
+		$resp = $this->call( 'rfsd_process_queue_now' );
 		$this->assertFalse( $resp['success'] );
 		$this->assertSame( 'Permission denied', $resp['data']['message'] );
-		$this->assertSame( 1, fqj_queue_length() );
+		$this->assertSame( 1, rfsd_queue_length() );
 	}
 
 	public function test_process_queue_now_rejects_bad_nonce() {
-		$this->assert_rejects_bad_nonce( 'fqj_process_queue_now' );
+		$this->assert_rejects_bad_nonce( 'rfsd_process_queue_now' );
 	}
 
 	public function test_purge_transients() {
-		$key = fqj_cache_key( 1 );
+		$key = rfsd_cache_key( 1 );
 		set_transient( $key, 'x' );
-		$this->nonce( 'fqj_health_nonce' );
-		$resp = $this->call( 'fqj_purge_transients' );
+		$this->nonce( 'rfsd_health_nonce' );
+		$resp = $this->call( 'rfsd_purge_transients' );
 
 		$this->assertTrue( $resp['success'] );
 		$this->assertFalse( get_transient( $key ) );
@@ -254,44 +275,44 @@ class Test_FQJ_Ajax extends WP_Ajax_UnitTestCase {
 
 	public function test_purge_transients_requires_manage_options() {
 		$this->_setRole( 'editor' );
-		set_transient( fqj_cache_key( 1 ), 'x' );
-		$this->nonce( 'fqj_health_nonce' );
+		set_transient( rfsd_cache_key( 1 ), 'x' );
+		$this->nonce( 'rfsd_health_nonce' );
 
-		$resp = $this->call( 'fqj_purge_transients' );
+		$resp = $this->call( 'rfsd_purge_transients' );
 		$this->assertFalse( $resp['success'] );
-		$this->assertSame( 'x', get_transient( fqj_cache_key( 1 ) ) );
+		$this->assertSame( 'x', get_transient( rfsd_cache_key( 1 ) ) );
 	}
 
 	public function test_purge_transients_rejects_bad_nonce() {
-		$this->assert_rejects_bad_nonce( 'fqj_purge_transients' );
+		$this->assert_rejects_bad_nonce( 'rfsd_purge_transients' );
 	}
 
 	public function test_clear_invalidation_log() {
-		fqj_log_invalidation_run( 1, array( 1 ) );
-		$this->nonce( 'fqj_health_nonce' );
-		$resp = $this->call( 'fqj_clear_invalidation_log' );
+		rfsd_log_invalidation_run( 1, array( 1 ) );
+		$this->nonce( 'rfsd_health_nonce' );
+		$resp = $this->call( 'rfsd_clear_invalidation_log' );
 
 		$this->assertTrue( $resp['success'] );
-		$this->assertSame( array(), get_option( 'fqj_invalidation_log' ) );
+		$this->assertSame( array(), get_option( 'rfsd_invalidation_log' ) );
 	}
 
 	public function test_clear_invalidation_log_requires_manage_options() {
 		$this->_setRole( 'editor' );
-		fqj_log_invalidation_run( 1, array( 1 ) );
-		$this->nonce( 'fqj_health_nonce' );
+		rfsd_log_invalidation_run( 1, array( 1 ) );
+		$this->nonce( 'rfsd_health_nonce' );
 
-		$resp = $this->call( 'fqj_clear_invalidation_log' );
+		$resp = $this->call( 'rfsd_clear_invalidation_log' );
 		$this->assertFalse( $resp['success'] );
-		$this->assertCount( 1, get_option( 'fqj_invalidation_log' ) );
+		$this->assertCount( 1, get_option( 'rfsd_invalidation_log' ) );
 	}
 
 	public function test_clear_invalidation_log_rejects_bad_nonce() {
-		$this->assert_rejects_bad_nonce( 'fqj_clear_invalidation_log' );
+		$this->assert_rejects_bad_nonce( 'rfsd_clear_invalidation_log' );
 	}
 
 	public function test_health_actions_reject_admin_nonce() {
-		$this->nonce( 'fqj_admin_nonce' );
+		$this->nonce( 'rfsd_admin_nonce' );
 		$this->expectException( WPAjaxDieStopException::class );
-		$this->_handleAjax( 'fqj_purge_transients' );
+		$this->_handleAjax( 'rfsd_purge_transients' );
 	}
 }
