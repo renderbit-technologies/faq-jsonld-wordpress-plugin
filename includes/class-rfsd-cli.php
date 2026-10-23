@@ -24,6 +24,9 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		/**
 		 * Purge all cached FAQ output.
 		 *
+		 * @subcommand purge-transients
+		 * @alias purge_transients
+		 *
 		 * @param array $args       Positional arguments.
 		 * @param array $assoc_args Associative arguments.
 		 */
@@ -35,6 +38,9 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		/**
 		 * Process invalidation queue via CLI.
 		 * Usage: wp rfsd process-queue --limit=1000
+		 *
+		 * @subcommand process-queue
+		 * @alias process_queue
 		 *
 		 * @param array $args       Positional arguments.
 		 * @param array $assoc_args Associative arguments.
@@ -48,6 +54,9 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 
 		/**
 		 * Show queue length
+		 *
+		 * @subcommand queue-info
+		 * @alias queue_info
 		 *
 		 * @param array $args       Positional arguments.
 		 * @param array $assoc_args Associative arguments.
