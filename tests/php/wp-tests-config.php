@@ -3,7 +3,7 @@
  * WordPress test suite config. Database settings come from the environment so the
  * same file works locally and in CI.
  *
- * @package FAQ_JSON_LD
+ * @package Renderbit_FAQ_Structured_Data
  */
 
 // phpcs:disable WordPress.WP.GlobalVariablesOverride.Prohibited

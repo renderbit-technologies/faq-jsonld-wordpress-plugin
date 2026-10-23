@@ -2,20 +2,20 @@
 /**
  * Invalidation triggered by FAQ lifecycle and post changes.
  *
- * @package FAQ_JSON_LD
+ * @package Renderbit_FAQ_Structured_Data
  */
 
 /**
  * Invalidation hook tests.
  */
-class Test_FQJ_Invalidation_Hooks extends FQJ_TestCase {
+class Test_RFSD_Invalidation_Hooks extends RFSD_TestCase {
 
 	/**
 	 * Empty the queue so a test sees only its own entries.
 	 */
 	private function clear_queue() {
 		global $wpdb;
-		$table = fqj_queue_table_name();
+		$table = rfsd_queue_table_name();
 		$wpdb->query( "DELETE FROM {$table}" ); // phpcs:ignore WordPress.DB
 	}
 
@@ -41,7 +41,7 @@ class Test_FQJ_Invalidation_Hooks extends FQJ_TestCase {
 					'value' => '1',
 				),
 			),
-			fqj_get_mappings_for_faq( $faq )
+			rfsd_get_mappings_for_faq( $faq )
 		);
 	}
 
@@ -51,8 +51,8 @@ class Test_FQJ_Invalidation_Hooks extends FQJ_TestCase {
 		$faq = $this->create_faq( 'Q', 'A', array( 'posts' => array( $a ) ) );
 		$this->clear_queue();
 
-		update_post_meta( $faq, 'fqj_assoc_data_json', wp_json_encode( array( 'posts' => array( $b ) ) ) );
-		fqj_rebuild_index_for_faq( $faq );
+		update_post_meta( $faq, 'rfsd_assoc_data_json', wp_json_encode( array( 'posts' => array( $b ) ) ) );
+		rfsd_rebuild_index_for_faq( $faq );
 
 		$this->assertEqualSets( array( $a, $b ), $this->get_queue() );
 	}
@@ -62,8 +62,8 @@ class Test_FQJ_Invalidation_Hooks extends FQJ_TestCase {
 		$faq = $this->create_faq( 'Q', 'A', array( 'posts' => array( $a ) ) );
 		$this->clear_queue();
 
-		update_post_meta( $faq, 'fqj_assoc_data_json', wp_json_encode( array() ) );
-		fqj_rebuild_index_for_faq( $faq );
+		update_post_meta( $faq, 'rfsd_assoc_data_json', wp_json_encode( array() ) );
+		rfsd_rebuild_index_for_faq( $faq );
 
 		$this->assertSame( array( $a ), $this->get_queue() );
 	}
@@ -80,8 +80,8 @@ class Test_FQJ_Invalidation_Hooks extends FQJ_TestCase {
 		);
 		$this->clear_queue();
 
-		update_post_meta( $faq, 'fqj_assoc_data_json', wp_json_encode( array() ) );
-		fqj_rebuild_index_for_faq( $faq );
+		update_post_meta( $faq, 'rfsd_assoc_data_json', wp_json_encode( array() ) );
+		rfsd_rebuild_index_for_faq( $faq );
 
 		$jobs = wp_list_pluck( $this->get_queue_jobs(), 'item_value', 'item_type' );
 		$this->assertSame( (string) $term, $jobs['term'] );
@@ -91,11 +91,11 @@ class Test_FQJ_Invalidation_Hooks extends FQJ_TestCase {
 	public function test_removing_global_purges_cache() {
 		$post = self::factory()->post->create();
 		$faq  = $this->create_faq( 'Q', 'A', array( 'global' => true ) );
-		$key  = fqj_cache_key( $post );
+		$key  = rfsd_cache_key( $post );
 		set_transient( $key, 'x' );
 
-		update_post_meta( $faq, 'fqj_assoc_data_json', wp_json_encode( array() ) );
-		fqj_rebuild_index_for_faq( $faq );
+		update_post_meta( $faq, 'rfsd_assoc_data_json', wp_json_encode( array() ) );
+		rfsd_rebuild_index_for_faq( $faq );
 
 		$this->assertFalse( get_transient( $key ) );
 	}
@@ -105,7 +105,7 @@ class Test_FQJ_Invalidation_Hooks extends FQJ_TestCase {
 		$faq = $this->create_faq( 'Q', 'A', array( 'posts' => array( $a ) ) );
 		$this->clear_queue();
 
-		fqj_rebuild_index_for_faq( $faq, false );
+		rfsd_rebuild_index_for_faq( $faq, false );
 		$this->assertSame( array(), $this->get_queue() );
 	}
 
@@ -233,17 +233,17 @@ class Test_FQJ_Invalidation_Hooks extends FQJ_TestCase {
 		$cat  = self::factory()->category->create();
 		$post = self::factory()->post->create();
 		wp_set_post_categories( $post, array( $cat ) );
-		set_transient( fqj_cache_key( $post ), 'x' );
+		set_transient( rfsd_cache_key( $post ), 'x' );
 
 		wp_set_post_categories( $post, array( $cat ) );
-		$this->assertSame( 'x', get_transient( fqj_cache_key( $post ) ) );
+		$this->assertSame( 'x', get_transient( rfsd_cache_key( $post ) ) );
 	}
 
 	public function test_faq_term_changes_do_not_clear_cache() {
 		$faq = $this->create_faq();
-		set_transient( fqj_cache_key( $faq ), 'x' );
+		set_transient( rfsd_cache_key( $faq ), 'x' );
 		wp_set_object_terms( $faq, array( 'a' ), 'post_tag' );
-		$this->assertSame( 'x', get_transient( fqj_cache_key( $faq ) ) );
+		$this->assertSame( 'x', get_transient( rfsd_cache_key( $faq ) ) );
 	}
 
 	public function test_slug_change_clears_url_mapped_cache() {
@@ -266,34 +266,34 @@ class Test_FQJ_Invalidation_Hooks extends FQJ_TestCase {
 		$post   = self::factory()->post->create( array( 'post_type' => 'page' ) );
 		$parent = self::factory()->post->create( array( 'post_type' => 'page' ) );
 
-		set_transient( fqj_cache_key( $post ), 'x' );
+		set_transient( rfsd_cache_key( $post ), 'x' );
 		wp_update_post(
 			array(
 				'ID'          => $post,
 				'post_parent' => $parent,
 			)
 		);
-		$this->assertFalse( get_transient( fqj_cache_key( $post ) ) );
+		$this->assertFalse( get_transient( rfsd_cache_key( $post ) ) );
 
-		set_transient( fqj_cache_key( $post ), 'x' );
+		set_transient( rfsd_cache_key( $post ), 'x' );
 		wp_update_post(
 			array(
 				'ID'          => $post,
 				'post_status' => 'draft',
 			)
 		);
-		$this->assertFalse( get_transient( fqj_cache_key( $post ) ) );
+		$this->assertFalse( get_transient( rfsd_cache_key( $post ) ) );
 	}
 
 	public function test_title_change_keeps_cache() {
 		$post = self::factory()->post->create();
-		set_transient( fqj_cache_key( $post ), 'x' );
+		set_transient( rfsd_cache_key( $post ), 'x' );
 		wp_update_post(
 			array(
 				'ID'         => $post,
 				'post_title' => 'Different',
 			)
 		);
-		$this->assertSame( 'x', get_transient( fqj_cache_key( $post ) ) );
+		$this->assertSame( 'x', get_transient( rfsd_cache_key( $post ) ) );
 	}
 }

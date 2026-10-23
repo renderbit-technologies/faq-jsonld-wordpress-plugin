@@ -2,18 +2,18 @@
 /**
  * JSON-LD output on the frontend.
  *
- * @package FAQ_JSON_LD
+ * @package Renderbit_FAQ_Structured_Data
  */
 
 /**
  * Frontend tests.
  */
-class Test_FQJ_Frontend extends FQJ_TestCase {
+class Test_RFSD_Frontend extends RFSD_TestCase {
 
 	public function test_no_output_without_queried_post() {
 		$this->go_to( home_url( '/' ) );
 		ob_start();
-		fqj_maybe_print_faq_jsonld();
+		rfsd_maybe_print_faq_jsonld();
 		$this->assertSame( '', ob_get_clean() );
 	}
 
@@ -24,7 +24,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 		$this->go_to( get_permalink( $post ) );
 		set_current_screen( 'dashboard' );
 		ob_start();
-		fqj_maybe_print_faq_jsonld();
+		rfsd_maybe_print_faq_jsonld();
 		$this->assertSame( '', ob_get_clean() );
 		set_current_screen( 'front' );
 	}
@@ -56,7 +56,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 	}
 
 	public function test_faqpage_output_type_setting() {
-		update_option( FQJ_OPTION_KEY, array( 'output_type' => 'faqpage' ) );
+		update_option( RFSD_OPTION_KEY, array( 'output_type' => 'faqpage' ) );
 		$post = self::factory()->post->create();
 		$this->create_faq( 'Q', 'A', array( 'posts' => array( $post ) ) );
 
@@ -65,7 +65,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 	}
 
 	public function test_unknown_output_type_falls_back_to_faq_page() {
-		update_option( FQJ_OPTION_KEY, array( 'output_type' => 'nonsense' ) );
+		update_option( RFSD_OPTION_KEY, array( 'output_type' => 'nonsense' ) );
 		$post = self::factory()->post->create();
 		$this->create_faq( 'Q', 'A', array( 'posts' => array( $post ) ) );
 
@@ -81,14 +81,14 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 		$html = $this->render_head_for( $post );
 		$this->assertStringContainsString( 'generated, no output', $html );
 		$this->assertStringNotContainsString( '<script', $html );
-		$this->assertSame( '__FQJ_EMPTY__', get_transient( fqj_cache_key( $post ) ) );
+		$this->assertSame( '__RFSD_EMPTY__', get_transient( rfsd_cache_key( $post ) ) );
 
 		$this->assertStringContainsString( 'cached, no output', $this->render_head_for( $post ) );
 	}
 
 	public function test_cached_output_is_served_from_transient() {
 		$post = self::factory()->post->create();
-		set_transient( fqj_cache_key( $post ), '<script type="application/ld+json">{"cached":true}</script>' );
+		set_transient( rfsd_cache_key( $post ), '<script type="application/ld+json">{"cached":true}</script>' );
 
 		$html = $this->render_head_for( $post );
 		$this->assertStringContainsString( '(cached)', $html );
@@ -97,21 +97,21 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 
 	public function test_blank_cached_value_reports_unknown_state() {
 		$post = self::factory()->post->create();
-		set_transient( fqj_cache_key( $post ), '   ' );
+		set_transient( rfsd_cache_key( $post ), '   ' );
 		$this->assertStringContainsString( 'cached, unknown state', $this->render_head_for( $post ) );
 	}
 
 	public function test_generated_output_is_cached_with_ttl() {
-		update_option( FQJ_OPTION_KEY, array( 'cache_ttl' => 600 ) );
+		update_option( RFSD_OPTION_KEY, array( 'cache_ttl' => 600 ) );
 		$post = self::factory()->post->create();
 		$this->create_faq( 'Q', 'A', array( 'posts' => array( $post ) ) );
 
 		$html   = $this->render_head_for( $post );
-		$cached = get_transient( fqj_cache_key( $post ) );
+		$cached = get_transient( rfsd_cache_key( $post ) );
 		$this->assertStringStartsWith( '<script type="application/ld+json">', $cached );
 		$this->assertStringContainsString( $cached, $html );
 
-		$timeout = (int) get_option( '_transient_timeout_' . fqj_cache_key( $post ) );
+		$timeout = (int) get_option( '_transient_timeout_' . rfsd_cache_key( $post ) );
 		$this->assertEqualsWithDelta( time() + 600, $timeout, 5 );
 	}
 
@@ -119,14 +119,14 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
 		$post = self::factory()->post->create( array( 'post_status' => 'private' ) );
 		$this->create_faq( 'Private?', 'Yes.', array( 'posts' => array( $post ) ) );
-		set_transient( fqj_cache_key( $post ), '__FQJ_EMPTY__' );
+		set_transient( rfsd_cache_key( $post ), '__RFSD_EMPTY__' );
 
 		$html = $this->render_head_for( $post );
 		$json = $this->extract_json_ld( $html );
 
 		$this->assertSame( 'Private?', $json['mainEntity'][0]['name'], 'Never served from cache.' );
 		$this->assertStringContainsString( '(uncached)', $html );
-		$this->assertSame( '__FQJ_EMPTY__', get_transient( fqj_cache_key( $post ) ), 'Never written to cache.' );
+		$this->assertSame( '__RFSD_EMPTY__', get_transient( rfsd_cache_key( $post ) ), 'Never written to cache.' );
 	}
 
 	public function test_draft_preview_renders_without_cached_output() {
@@ -135,12 +135,12 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 
 		$this->go_to( get_preview_post_link( $post ) );
 		ob_start();
-		fqj_maybe_print_faq_jsonld();
+		rfsd_maybe_print_faq_jsonld();
 		$html = ob_get_clean();
 
 		$this->assertTrue( is_preview() );
 		$this->assertStringContainsString( '(uncached, no output)', $html );
-		$this->assertFalse( get_transient( fqj_cache_key( $post ) ) );
+		$this->assertFalse( get_transient( rfsd_cache_key( $post ) ) );
 	}
 
 	public function test_post_type_mapping() {
@@ -153,15 +153,15 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 	}
 
 	public function test_term_mapping_for_category_and_custom_taxonomy() {
-		register_taxonomy( 'fqj_topic', 'post' );
+		register_taxonomy( 'rfsd_topic', 'post' );
 		$cat   = self::factory()->category->create();
-		$topic = self::factory()->term->create( array( 'taxonomy' => 'fqj_topic' ) );
+		$topic = self::factory()->term->create( array( 'taxonomy' => 'rfsd_topic' ) );
 
 		$in_cat   = self::factory()->post->create();
 		$in_topic = self::factory()->post->create();
 		$neither  = self::factory()->post->create();
 		wp_set_post_categories( $in_cat, array( $cat ) );
-		wp_set_object_terms( $in_topic, array( $topic ), 'fqj_topic' );
+		wp_set_object_terms( $in_topic, array( $topic ), 'rfsd_topic' );
 
 		$this->create_faq( 'Cat Q', 'Cat A', array( 'terms' => array( $cat ) ) );
 		$this->create_faq( 'Topic Q', 'Topic A', array( 'terms' => array( $topic ) ) );
@@ -172,7 +172,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 		$this->assertSame( 'Topic Q', $topic_json['mainEntity'][0]['name'] );
 		$this->assertNull( $this->extract_json_ld( $this->render_head_for( $neither ) ) );
 
-		unregister_taxonomy( 'fqj_topic' );
+		unregister_taxonomy( 'rfsd_topic' );
 	}
 
 	public function test_url_mapping_matches_permalink() {
@@ -190,7 +190,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 	public function test_legacy_url_rows_match_only_while_migration_runs() {
 		$post = self::factory()->post->create( array( 'post_name' => 'legacy' ) );
 		foreach ( array( 'http://example.org/legacy/', 'http://example.org/legacy' ) as $value ) {
-			fqj_insert_mappings(
+			rfsd_insert_mappings(
 				$this->create_faq( 'Old?', 'Yes.' ),
 				array(
 					array(
@@ -201,11 +201,11 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 			);
 		}
 
-		update_option( FQJ_DATA_VERSION_OPTION, '2' );
-		$this->assertCount( 2, fqj_faq_ids_for_post( $post ) );
+		update_option( RFSD_DATA_VERSION_OPTION, '2' );
+		$this->assertCount( 2, rfsd_faq_ids_for_post( $post ) );
 
-		update_option( FQJ_DATA_VERSION_OPTION, '3' );
-		$this->assertSame( array(), fqj_faq_ids_for_post( $post ) );
+		update_option( RFSD_DATA_VERSION_OPTION, '3' );
+		$this->assertSame( array(), rfsd_faq_ids_for_post( $post ) );
 	}
 
 	public function test_global_mapping_applies_everywhere() {
@@ -220,7 +220,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 	public function test_post_id_does_not_partially_match_longer_ids() {
 		$post = self::factory()->post->create();
 		$faq  = $this->create_faq();
-		fqj_insert_mappings(
+		rfsd_insert_mappings(
 			$faq,
 			array(
 				array(
@@ -240,7 +240,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 	public function test_mapping_type_must_match_value() {
 		$post = self::factory()->post->create();
 		$faq  = $this->create_faq();
-		fqj_insert_mappings(
+		rfsd_insert_mappings(
 			$faq,
 			array(
 				array(
@@ -258,7 +258,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 		$a    = $this->create_faq( 'A?', 'a', array( 'posts' => array( $post ) ) );
 		$b    = $this->create_faq( 'B?', 'b', array( 'post_types' => array( 'page' ) ) );
 		// Matches through two mapping rows but must appear only once.
-		fqj_insert_mappings(
+		rfsd_insert_mappings(
 			$b,
 			array(
 				array(
@@ -287,7 +287,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 
 		$html = $this->render_head_for( $post );
 		$this->assertNull( $this->extract_json_ld( $html ) );
-		$this->assertSame( '__FQJ_EMPTY__', get_transient( fqj_cache_key( $post ) ) );
+		$this->assertSame( '__RFSD_EMPTY__', get_transient( rfsd_cache_key( $post ) ) );
 	}
 
 	public function test_faqs_with_empty_question_or_answer_are_skipped() {
@@ -298,7 +298,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 
 		$html = $this->render_head_for( $post );
 		$this->assertNull( $this->extract_json_ld( $html ) );
-		$this->assertSame( '__FQJ_EMPTY__', get_transient( fqj_cache_key( $post ) ) );
+		$this->assertSame( '__RFSD_EMPTY__', get_transient( rfsd_cache_key( $post ) ) );
 	}
 
 	public function test_answer_html_is_stripped_and_unicode_kept() {
@@ -327,7 +327,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 	}
 
 	public function test_legacy_faqsection_value_outputs_faq_page() {
-		update_option( FQJ_OPTION_KEY, array( 'output_type' => 'faqsection' ) );
+		update_option( RFSD_OPTION_KEY, array( 'output_type' => 'faqsection' ) );
 		$post = self::factory()->post->create();
 		$this->create_faq( 'Q', 'A', array( 'posts' => array( $post ) ) );
 
@@ -345,7 +345,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 
 		$json = $this->extract_json_ld( $this->render_head_for( $post ) );
 		$this->assertSame( "Don\u{2019}t & won't?", $json['mainEntity'][0]['name'] );
-		$this->assertSame( "Tom & Jerry said \"hi\". Second paragraph", $json['mainEntity'][0]['acceptedAnswer']['text'] );
+		$this->assertSame( 'Tom & Jerry said "hi". Second paragraph', $json['mainEntity'][0]['acceptedAnswer']['text'] );
 	}
 
 	public function test_decoded_script_close_cannot_break_out_of_script_element() {
@@ -375,7 +375,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 			$this->go_to( $url );
 			$this->assertFalse( is_singular(), $url );
 			ob_start();
-			fqj_maybe_print_faq_jsonld();
+			rfsd_maybe_print_faq_jsonld();
 			$this->assertSame( '', ob_get_clean(), $url );
 		}
 	}
@@ -404,16 +404,16 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 
 	public function test_shortcodes_render_in_answer() {
 		add_shortcode(
-			'fqj_test_sc',
+			'rfsd_test_sc',
 			static function () {
 				return '<b>rendered</b>';
 			}
 		);
 		$post = self::factory()->post->create();
-		$this->create_faq( 'Q', 'Value: [fqj_test_sc]', array( 'posts' => array( $post ) ) );
+		$this->create_faq( 'Q', 'Value: [rfsd_test_sc]', array( 'posts' => array( $post ) ) );
 
 		$json = $this->extract_json_ld( $this->render_head_for( $post ) );
-		remove_shortcode( 'fqj_test_sc' );
+		remove_shortcode( 'rfsd_test_sc' );
 		$this->assertSame( 'Value: rendered', $json['mainEntity'][0]['acceptedAnswer']['text'] );
 	}
 
@@ -424,16 +424,16 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 		$a = static function ( $text ) {
 			return strtoupper( $text );
 		};
-		add_filter( 'fqj_question_text', $q, 10, 2 );
-		add_filter( 'fqj_answer_text', $a );
+		add_filter( 'rfsd_question_text', $q, 10, 2 );
+		add_filter( 'rfsd_answer_text', $a );
 
 		$post = self::factory()->post->create();
 		$this->create_faq( 'Q', 'answer', array( 'posts' => array( $post ) ) );
 
 		$json = $this->extract_json_ld( $this->render_head_for( $post ) );
-		remove_filter( 'fqj_question_text', $q, 10 );
-		remove_filter( 'fqj_answer_text', $a );
-		$this->assertSame( 'Q [faq_item]', $json['mainEntity'][0]['name'] );
+		remove_filter( 'rfsd_question_text', $q, 10 );
+		remove_filter( 'rfsd_answer_text', $a );
+		$this->assertSame( 'Q [rfsd_faq]', $json['mainEntity'][0]['name'] );
 		$this->assertSame( 'ANSWER', $json['mainEntity'][0]['acceptedAnswer']['text'] );
 	}
 }

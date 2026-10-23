@@ -32,7 +32,7 @@ jobs:
           tools: none
 
       - name: Lint plugin files
-        run: find faq-jsonld.php uninstall.php includes -name '*.php' -print0 | xargs -0 -n1 php -l
+        run: find renderbit-faq-structured-data.php uninstall.php includes -name '*.php' -print0 | xargs -0 -n1 php -l
 
   phpcs:
     name: Coding standards
@@ -59,12 +59,12 @@ jobs:
 
       # Check what ships (the git archive, as in the release zip and WordPress.org SVN), not the dev files.
       - name: Export plugin files
-        run: mkdir -p build/faq-jsonld && git archive HEAD | tar -x -C build/faq-jsonld
+        run: mkdir -p build/renderbit-faq-structured-data && git archive HEAD | tar -x -C build/renderbit-faq-structured-data
 
       - uses: WordPress/plugin-check-action@10857da14b6c2246d15402b3e69f777edcf8c12e # v1.1.9
         with:
-          build-dir: build/faq-jsonld
-          slug: faq-jsonld
+          build-dir: build/renderbit-faq-structured-data
+          slug: renderbit-faq-structured-data
           strict: true
 
   phpunit:

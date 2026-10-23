@@ -2,13 +2,13 @@
 /**
  * Mapping table and indexer.
  *
- * @package FAQ_JSON_LD
+ * @package Renderbit_FAQ_Structured_Data
  */
 
 /**
  * Indexer tests.
  */
-class Test_FQJ_Indexer extends FQJ_TestCase {
+class Test_RFSD_Indexer extends RFSD_TestCase {
 
 	/**
 	 * @dataProvider url_provider
@@ -17,7 +17,7 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 	 * @param string $expected Normalized URL.
 	 */
 	public function test_normalize_url( $input, $expected ) {
-		$this->assertSame( $expected, fqj_normalize_url( $input ) );
+		$this->assertSame( $expected, rfsd_normalize_url( $input ) );
 	}
 
 	public function url_provider() {
@@ -51,27 +51,27 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 	}
 
 	public function test_create_table_stores_schema_version() {
-		delete_option( FQJ_DB_VERSION_OPTION );
-		fqj_create_table();
-		$this->assertSame( FQJ_DB_VERSION, get_option( FQJ_DB_VERSION_OPTION ) );
+		delete_option( RFSD_DB_VERSION_OPTION );
+		rfsd_create_table();
+		$this->assertSame( RFSD_DB_VERSION, get_option( RFSD_DB_VERSION_OPTION ) );
 	}
 
 	public function test_maybe_upgrade_db_runs_when_version_is_stale() {
-		update_option( FQJ_DB_VERSION_OPTION, '0' );
-		fqj_maybe_upgrade_db();
-		$this->assertSame( FQJ_DB_VERSION, get_option( FQJ_DB_VERSION_OPTION ) );
+		update_option( RFSD_DB_VERSION_OPTION, '0' );
+		rfsd_maybe_upgrade_db();
+		$this->assertSame( RFSD_DB_VERSION, get_option( RFSD_DB_VERSION_OPTION ) );
 	}
 
 	public function test_maybe_upgrade_db_skips_newer_stored_version() {
-		update_option( FQJ_DB_VERSION_OPTION, '999' );
-		fqj_maybe_upgrade_db();
-		$this->assertSame( '999', get_option( FQJ_DB_VERSION_OPTION ) );
+		update_option( RFSD_DB_VERSION_OPTION, '999' );
+		rfsd_maybe_upgrade_db();
+		$this->assertSame( '999', get_option( RFSD_DB_VERSION_OPTION ) );
 	}
 
 	public function test_data_migration_reindexes_and_purges_once() {
-		$faq = self::factory()->post->create( array( 'post_type' => 'faq_item' ) );
-		update_post_meta( $faq, 'fqj_assoc_data_json', wp_json_encode( array( 'posts' => array( 5 ) ) ) );
-		fqj_insert_mappings(
+		$faq = self::factory()->post->create( array( 'post_type' => 'rfsd_faq' ) );
+		update_post_meta( $faq, 'rfsd_assoc_data_json', wp_json_encode( array( 'posts' => array( 5 ) ) ) );
+		rfsd_insert_mappings(
 			$faq,
 			array(
 				array(
@@ -80,33 +80,39 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 				),
 			)
 		);
-		$stale_key = fqj_cache_key( 5 );
+		$stale_key = rfsd_cache_key( 5 );
 		set_transient( $stale_key, 'stale', 600 );
-		delete_option( FQJ_DATA_VERSION_OPTION );
+		delete_option( RFSD_DATA_VERSION_OPTION );
 
-		fqj_run_data_migration();
+		rfsd_run_data_migration();
 
-		$this->assertSame( FQJ_DATA_VERSION, get_option( FQJ_DATA_VERSION_OPTION ) );
+		$this->assertSame( RFSD_DATA_VERSION, get_option( RFSD_DATA_VERSION_OPTION ) );
 		$this->assertFalse( get_transient( $stale_key ) );
-		$this->assertNotSame( $stale_key, fqj_cache_key( 5 ) );
+		$this->assertNotSame( $stale_key, rfsd_cache_key( 5 ) );
 		global $wpdb;
-		$rows = $wpdb->get_col( $wpdb->prepare( 'SELECT mapping_type FROM ' . fqj_table_name() . ' WHERE faq_id = %d', $faq ) );
+		$rows = $wpdb->get_col( $wpdb->prepare( 'SELECT mapping_type FROM ' . rfsd_table_name() . ' WHERE faq_id = %d', $faq ) );
 		$this->assertSame( array( 'post' ), $rows );
 
-		set_transient( fqj_cache_key( 5 ), 'fresh', 600 );
-		fqj_run_data_migration();
-		$this->assertSame( 'fresh', get_transient( fqj_cache_key( 5 ) ) );
+		set_transient( rfsd_cache_key( 5 ), 'fresh', 600 );
+		rfsd_run_data_migration();
+		$this->assertSame( 'fresh', get_transient( rfsd_cache_key( 5 ) ) );
 	}
 
 	public function test_data_migration_normalizes_legacy_faqsection_option_and_purges() {
-		update_option( FQJ_OPTION_KEY, array( 'output_type' => 'faqsection', 'cache_ttl' => 99 ) );
-		$stale_key = fqj_cache_key( 5 );
+		update_option(
+			RFSD_OPTION_KEY,
+			array(
+				'output_type' => 'faqsection',
+				'cache_ttl'   => 99,
+			)
+		);
+		$stale_key = rfsd_cache_key( 5 );
 		set_transient( $stale_key, 'stale', 600 );
-		delete_option( FQJ_DATA_VERSION_OPTION );
+		delete_option( RFSD_DATA_VERSION_OPTION );
 
-		fqj_run_data_migration();
+		rfsd_run_data_migration();
 
-		$opts = get_option( FQJ_OPTION_KEY );
+		$opts = get_option( RFSD_OPTION_KEY );
 		$this->assertSame( 'faqpage', $opts['output_type'] );
 		$this->assertSame( 99, $opts['cache_ttl'] );
 		$this->assertFalse( get_transient( $stale_key ) );
@@ -115,11 +121,11 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 	public function test_data_migration_reindexes_trashed_faqs() {
 		$faq = self::factory()->post->create(
 			array(
-				'post_type'   => 'faq_item',
+				'post_type'   => 'rfsd_faq',
 				'post_status' => 'trash',
 			)
 		);
-		fqj_insert_mappings(
+		rfsd_insert_mappings(
 			$faq,
 			array(
 				array(
@@ -128,67 +134,75 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 				),
 			)
 		);
-		delete_option( FQJ_DATA_VERSION_OPTION );
+		delete_option( RFSD_DATA_VERSION_OPTION );
 
-		fqj_run_data_migration();
+		rfsd_run_data_migration();
 
 		global $wpdb;
-		$count = $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . fqj_table_name() . ' WHERE faq_id = %d', $faq ) );
+		$count = $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . rfsd_table_name() . ' WHERE faq_id = %d', $faq ) );
 		$this->assertSame( '0', (string) $count );
 	}
 
 	public function test_data_migration_runs_in_batches() {
-		add_filter( 'fqj_data_migration_batch_size', array( $this, 'tiny_batch' ) );
-		self::factory()->post->create_many( 3, array( 'post_type' => 'faq_item' ) );
-		delete_option( FQJ_DATA_VERSION_OPTION );
-		delete_option( FQJ_DATA_MIGRATION_CURSOR_OPTION );
-		wp_clear_scheduled_hook( 'fqj_data_migration' );
+		add_filter( 'rfsd_data_migration_batch_size', array( $this, 'tiny_batch' ) );
+		self::factory()->post->create_many( 3, array( 'post_type' => 'rfsd_faq' ) );
+		delete_option( RFSD_DATA_VERSION_OPTION );
+		delete_option( RFSD_DATA_MIGRATION_CURSOR_OPTION );
+		wp_clear_scheduled_hook( 'rfsd_data_migration' );
 
-		fqj_run_data_migration();
-		$this->assertNotSame( FQJ_DATA_VERSION, get_option( FQJ_DATA_VERSION_OPTION ) );
-		$this->assertNotFalse( wp_next_scheduled( 'fqj_data_migration' ) );
+		rfsd_run_data_migration();
+		$this->assertNotSame( RFSD_DATA_VERSION, get_option( RFSD_DATA_VERSION_OPTION ) );
+		$this->assertNotFalse( wp_next_scheduled( 'rfsd_data_migration' ) );
 
-		for ( $i = 0; $i < 5 && FQJ_DATA_VERSION !== get_option( FQJ_DATA_VERSION_OPTION ); $i++ ) {
-			fqj_run_data_migration();
+		for ( $i = 0; $i < 5 && RFSD_DATA_VERSION !== get_option( RFSD_DATA_VERSION_OPTION ); $i++ ) {
+			rfsd_run_data_migration();
 		}
-		remove_filter( 'fqj_data_migration_batch_size', array( $this, 'tiny_batch' ) );
-		$this->assertSame( FQJ_DATA_VERSION, get_option( FQJ_DATA_VERSION_OPTION ) );
-		$this->assertFalse( get_option( FQJ_DATA_MIGRATION_CURSOR_OPTION ) );
+		remove_filter( 'rfsd_data_migration_batch_size', array( $this, 'tiny_batch' ) );
+		$this->assertSame( RFSD_DATA_VERSION, get_option( RFSD_DATA_VERSION_OPTION ) );
+		$this->assertFalse( get_option( RFSD_DATA_MIGRATION_CURSOR_OPTION ) );
 	}
 
 	public function test_data_migration_restarts_cursor_left_by_an_older_migration() {
-		$ids = self::factory()->post->create_many( 3, array( 'post_type' => 'faq_item' ) );
+		$ids = self::factory()->post->create_many( 3, array( 'post_type' => 'rfsd_faq' ) );
 		foreach ( $ids as $faq ) {
-			update_post_meta( $faq, 'fqj_assoc_data_json', wp_json_encode( array( 'posts' => array( 5 ) ) ) );
+			update_post_meta( $faq, 'rfsd_assoc_data_json', wp_json_encode( array( 'posts' => array( 5 ) ) ) );
 		}
-		delete_option( FQJ_DATA_VERSION_OPTION );
+		delete_option( RFSD_DATA_VERSION_OPTION );
 		// Migration 2 stored a bare ID past every FAQ before the plugin was updated.
-		update_option( FQJ_DATA_MIGRATION_CURSOR_OPTION, max( $ids ), false );
+		update_option( RFSD_DATA_MIGRATION_CURSOR_OPTION, max( $ids ), false );
 
-		fqj_run_data_migration();
+		rfsd_run_data_migration();
 
-		$this->assertSame( FQJ_DATA_VERSION, get_option( FQJ_DATA_VERSION_OPTION ) );
+		$this->assertSame( RFSD_DATA_VERSION, get_option( RFSD_DATA_VERSION_OPTION ) );
 		foreach ( $ids as $faq ) {
-			$this->assertSame( array( array( 'mapping_type' => 'post', 'mapping_value' => '5' ) ), $this->get_mappings( $faq ) );
+			$this->assertSame(
+				array(
+					array(
+						'mapping_type'  => 'post',
+						'mapping_value' => '5',
+					),
+				),
+				$this->get_mappings( $faq )
+			);
 		}
 	}
 
 	public function test_data_migration_cursor_records_its_version() {
-		add_filter( 'fqj_data_migration_batch_size', array( $this, 'tiny_batch' ) );
-		$ids = self::factory()->post->create_many( 3, array( 'post_type' => 'faq_item' ) );
+		add_filter( 'rfsd_data_migration_batch_size', array( $this, 'tiny_batch' ) );
+		$ids = self::factory()->post->create_many( 3, array( 'post_type' => 'rfsd_faq' ) );
 		sort( $ids );
-		delete_option( FQJ_DATA_VERSION_OPTION );
-		delete_option( FQJ_DATA_MIGRATION_CURSOR_OPTION );
+		delete_option( RFSD_DATA_VERSION_OPTION );
+		delete_option( RFSD_DATA_MIGRATION_CURSOR_OPTION );
 
-		fqj_run_data_migration();
-		remove_filter( 'fqj_data_migration_batch_size', array( $this, 'tiny_batch' ) );
+		rfsd_run_data_migration();
+		remove_filter( 'rfsd_data_migration_batch_size', array( $this, 'tiny_batch' ) );
 
 		$this->assertSame(
 			array(
-				'version' => FQJ_DATA_VERSION,
+				'version' => RFSD_DATA_VERSION,
 				'cursor'  => $ids[1],
 			),
-			get_option( FQJ_DATA_MIGRATION_CURSOR_OPTION )
+			get_option( RFSD_DATA_MIGRATION_CURSOR_OPTION )
 		);
 	}
 
@@ -197,25 +211,25 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 	}
 
 	public function test_maybe_schedule_data_migration() {
-		wp_clear_scheduled_hook( 'fqj_data_migration' );
-		update_option( FQJ_DATA_VERSION_OPTION, FQJ_DATA_VERSION );
-		fqj_maybe_schedule_data_migration();
-		$this->assertFalse( wp_next_scheduled( 'fqj_data_migration' ) );
+		wp_clear_scheduled_hook( 'rfsd_data_migration' );
+		update_option( RFSD_DATA_VERSION_OPTION, RFSD_DATA_VERSION );
+		rfsd_maybe_schedule_data_migration();
+		$this->assertFalse( wp_next_scheduled( 'rfsd_data_migration' ) );
 
-		delete_option( FQJ_DATA_VERSION_OPTION );
-		fqj_maybe_schedule_data_migration();
-		$this->assertNotFalse( wp_next_scheduled( 'fqj_data_migration' ) );
-		wp_clear_scheduled_hook( 'fqj_data_migration' );
+		delete_option( RFSD_DATA_VERSION_OPTION );
+		rfsd_maybe_schedule_data_migration();
+		$this->assertNotFalse( wp_next_scheduled( 'rfsd_data_migration' ) );
+		wp_clear_scheduled_hook( 'rfsd_data_migration' );
 	}
 
 	public function test_activation_skips_migration_on_fresh_install() {
-		delete_option( FQJ_DATA_VERSION_OPTION );
-		fqj_activate();
-		$this->assertSame( FQJ_DATA_VERSION, get_option( FQJ_DATA_VERSION_OPTION ) );
+		delete_option( RFSD_DATA_VERSION_OPTION );
+		rfsd_activate();
+		$this->assertSame( RFSD_DATA_VERSION, get_option( RFSD_DATA_VERSION_OPTION ) );
 	}
 
 	public function test_insert_and_delete_mappings() {
-		fqj_insert_mappings(
+		rfsd_insert_mappings(
 			123,
 			array(
 				array(
@@ -243,7 +257,7 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 			$this->get_mappings( 123 )
 		);
 
-		fqj_insert_mappings(
+		rfsd_insert_mappings(
 			456,
 			array(
 				array(
@@ -252,13 +266,13 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 				),
 			)
 		);
-		fqj_delete_mappings_for_faq( 123 );
+		rfsd_delete_mappings_for_faq( 123 );
 		$this->assertSame( array(), $this->get_mappings( 123 ) );
 		$this->assertCount( 1, $this->get_mappings( 456 ), 'Deleting one FAQ must not touch another.' );
 	}
 
 	public function test_insert_sanitizes_mapping_type() {
-		fqj_insert_mappings(
+		rfsd_insert_mappings(
 			77,
 			array(
 				array(
@@ -368,8 +382,8 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 		$b   = self::factory()->post->create();
 		$faq = $this->create_faq( 'Q', 'A', array( 'posts' => array( $a ) ) );
 
-		update_post_meta( $faq, 'fqj_assoc_data_json', wp_json_encode( array( 'posts' => array( $b ) ) ) );
-		fqj_rebuild_index_for_faq( $faq );
+		update_post_meta( $faq, 'rfsd_assoc_data_json', wp_json_encode( array( 'posts' => array( $b ) ) ) );
+		rfsd_rebuild_index_for_faq( $faq );
 
 		$this->assertSame(
 			array(
@@ -384,7 +398,7 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 
 	public function test_rebuild_handles_missing_or_invalid_payload() {
 		$faq = $this->create_faq();
-		fqj_insert_mappings(
+		rfsd_insert_mappings(
 			$faq,
 			array(
 				array(
@@ -394,15 +408,15 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 			)
 		);
 
-		fqj_rebuild_index_for_faq( $faq );
+		rfsd_rebuild_index_for_faq( $faq );
 		$this->assertSame( array(), $this->get_mappings( $faq ), 'No payload clears old rows.' );
 
-		update_post_meta( $faq, 'fqj_assoc_data_json', '{not json' );
-		fqj_rebuild_index_for_faq( $faq );
+		update_post_meta( $faq, 'rfsd_assoc_data_json', '{not json' );
+		rfsd_rebuild_index_for_faq( $faq );
 		$this->assertSame( array(), $this->get_mappings( $faq ) );
 
-		update_post_meta( $faq, 'fqj_assoc_data_json', '"a string"' );
-		fqj_rebuild_index_for_faq( $faq );
+		update_post_meta( $faq, 'rfsd_assoc_data_json', '"a string"' );
+		rfsd_rebuild_index_for_faq( $faq );
 		$this->assertSame( array(), $this->get_mappings( $faq ) );
 	}
 
@@ -421,7 +435,7 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 	}
 
 	public function test_enqueue_ignores_empty_mappings() {
-		fqj_enqueue_invalidation_for_mappings( array() );
+		rfsd_enqueue_invalidation_for_mappings( array() );
 		$this->assertSame( array(), $this->get_queue() );
 	}
 
@@ -433,7 +447,7 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 
 	public function test_enqueue_url_mapping_resolves_post() {
 		$target = self::factory()->post->create( array( 'post_name' => 'pricing' ) );
-		fqj_enqueue_invalidation_for_mappings(
+		rfsd_enqueue_invalidation_for_mappings(
 			array(
 				array(
 					'type'  => 'url',
@@ -452,7 +466,7 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 		$term  = self::factory()->category->create();
 		$pages = self::factory()->post->create_many( 3, array( 'post_type' => 'page' ) );
 
-		fqj_enqueue_invalidation_for_mappings(
+		rfsd_enqueue_invalidation_for_mappings(
 			array(
 				array(
 					'type'  => 'post_type',
@@ -489,13 +503,13 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 	}
 
 	public function test_enqueue_global_mapping_purges_all_faq_transients() {
-		$key_1 = fqj_cache_key( 1 );
-		$key_2 = fqj_cache_key( 2 );
+		$key_1 = rfsd_cache_key( 1 );
+		$key_2 = rfsd_cache_key( 2 );
 		set_transient( $key_1, 'x' );
 		set_transient( $key_2, 'y' );
 		set_transient( 'unrelated_transient', 'z' );
 
-		fqj_enqueue_invalidation_for_mappings(
+		rfsd_enqueue_invalidation_for_mappings(
 			array(
 				array(
 					'type'  => 'global',
@@ -506,12 +520,12 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 
 		$this->assertFalse( get_transient( $key_1 ) );
 		$this->assertFalse( get_transient( $key_2 ) );
-		$this->assertNotSame( $key_1, fqj_cache_key( 1 ) );
+		$this->assertNotSame( $key_1, rfsd_cache_key( 1 ) );
 		$this->assertSame( 'z', get_transient( 'unrelated_transient' ) );
 	}
 
 	public function test_enqueue_ignores_unknown_mapping_type() {
-		fqj_enqueue_invalidation_for_mappings(
+		rfsd_enqueue_invalidation_for_mappings(
 			array(
 				array(
 					'type'  => 'bogus',

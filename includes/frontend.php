@@ -2,7 +2,7 @@
 /**
  * Frontend output functions.
  *
- * @package FAQ_JSON_LD
+ * @package Renderbit_FAQ_Structured_Data
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @param string $html Text that may contain markup and entities.
  * @return string
  */
-function fqj_plain_text( $html ) {
+function rfsd_plain_text( $html ) {
 	// Keep block boundaries as spaces so adjacent paragraphs do not run together once tags are gone.
 	$html = preg_replace( '#<br\s*/?>|</(?:p|div|li|h[1-6]|tr|blockquote)>#i', '$0 ', (string) $html );
 	$text = wp_strip_all_tags( $html );
@@ -35,8 +35,8 @@ function fqj_plain_text( $html ) {
  * @param WP_Post $faq FAQ post.
  * @return string
  */
-function fqj_question_text( $faq ) {
-	$text = fqj_plain_text( get_the_title( $faq ) );
+function rfsd_question_text( $faq ) {
+	$text = rfsd_plain_text( get_the_title( $faq ) );
 
 	/**
 	 * Filters the question text output in JSON-LD.
@@ -44,7 +44,7 @@ function fqj_question_text( $faq ) {
 	 * @param string  $text Plain-text question.
 	 * @param WP_Post $faq  FAQ post.
 	 */
-	return (string) apply_filters( 'fqj_question_text', $text, $faq );
+	return (string) apply_filters( 'rfsd_question_text', $text, $faq );
 }
 
 /**
@@ -56,12 +56,12 @@ function fqj_question_text( $faq ) {
  * @param WP_Post $faq FAQ post.
  * @return string
  */
-function fqj_answer_text( $faq ) {
+function rfsd_answer_text( $faq ) {
 	$content = $faq->post_content;
 	if ( function_exists( 'do_blocks' ) ) {
 		$content = do_blocks( $content );
 	}
-	$text = fqj_plain_text( do_shortcode( $content ) );
+	$text = rfsd_plain_text( do_shortcode( $content ) );
 
 	/**
 	 * Filters the answer text output in JSON-LD.
@@ -69,13 +69,13 @@ function fqj_answer_text( $faq ) {
 	 * @param string  $text Plain-text answer.
 	 * @param WP_Post $faq  FAQ post.
 	 */
-	return (string) apply_filters( 'fqj_answer_text', $text, $faq );
+	return (string) apply_filters( 'rfsd_answer_text', $text, $faq );
 }
 
 /**
  * Build and print JSON-LD for current post (FAQ IDs come from the coverage module)
  */
-function fqj_maybe_print_faq_jsonld() {
+function rfsd_maybe_print_faq_jsonld() {
 	if ( is_admin() ) {
 		return;
 	}
@@ -92,8 +92,8 @@ function fqj_maybe_print_faq_jsonld() {
 
 	// Only coverable posts get cached output, so invalidation can always reach it. Private posts and
 	// previews render fresh every time.
-	if ( ! fqj_post_is_coverable( $current_id ) || is_preview() ) {
-		$output = fqj_render_faq_jsonld( $current_id );
+	if ( ! rfsd_post_is_coverable( $current_id ) || is_preview() ) {
+		$output = rfsd_render_faq_jsonld( $current_id );
 		echo "\n<!-- FAQ JSON-LD (uncached" . ( '' === $output ? ', no output' : '' ) . ") -->\n";
 		if ( '' !== $output ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -103,13 +103,13 @@ function fqj_maybe_print_faq_jsonld() {
 		return;
 	}
 
-	$opts      = get_option( FQJ_OPTION_KEY );
+	$opts      = get_option( RFSD_OPTION_KEY );
 	$cache_ttl = isset( $opts['cache_ttl'] ) ? intval( $opts['cache_ttl'] ) : 12 * HOUR_IN_SECONDS;
 
-	$transient_key = fqj_cache_key( $current_id );
+	$transient_key = rfsd_cache_key( $current_id );
 	$cached        = get_transient( $transient_key );
 	if ( false !== $cached ) {
-		if ( '__FQJ_EMPTY__' === $cached ) {
+		if ( '__RFSD_EMPTY__' === $cached ) {
 			echo "\n<!-- FAQ JSON-LD (cached, no output) -->\n";
 		} elseif ( '' !== trim( $cached ) ) {
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -122,22 +122,22 @@ function fqj_maybe_print_faq_jsonld() {
 		return;
 	}
 
-	$script = fqj_render_faq_jsonld( $current_id );
+	$script = rfsd_render_faq_jsonld( $current_id );
 	if ( '' === $script ) {
 		// cache negative result to avoid repeated queries.
-		set_transient( $transient_key, '__FQJ_EMPTY__', $cache_ttl );
+		set_transient( $transient_key, '__RFSD_EMPTY__', $cache_ttl );
 		echo "\n<!-- FAQ JSON-LD (generated, no output) -->\n";
 
 		return;
 	}
 
-	echo "\n<!-- FAQ JSON-LD injected by FAQ JSON-LD Manager plugin (generated) -->\n";
+	echo "\n<!-- FAQ JSON-LD injected by Renderbit FAQ Structured Data plugin (generated) -->\n";
 	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	echo $script . "\n";
 
 	set_transient( $transient_key, $script, $cache_ttl );
 }
-add_action( 'wp_head', 'fqj_maybe_print_faq_jsonld', 1 );
+add_action( 'wp_head', 'rfsd_maybe_print_faq_jsonld', 1 );
 
 /**
  * Build the JSON-LD script element for a post from its published FAQs.
@@ -145,15 +145,15 @@ add_action( 'wp_head', 'fqj_maybe_print_faq_jsonld', 1 );
  * @param int $post_id Post ID.
  * @return string The script element, or '' when no FAQ applies.
  */
-function fqj_render_faq_jsonld( $post_id ) {
-	$faq_ids = fqj_faq_ids_for_post( $post_id );
+function rfsd_render_faq_jsonld( $post_id ) {
+	$faq_ids = rfsd_faq_ids_for_post( $post_id );
 	if ( empty( $faq_ids ) ) {
 		return '';
 	}
 
 	$faqs = get_posts(
 		array(
-			'post_type'      => 'faq_item',
+			'post_type'      => RFSD_POST_TYPE,
 			'post_status'    => 'publish',
 			'posts_per_page' => -1,
 			'post__in'       => $faq_ids,
@@ -163,8 +163,8 @@ function fqj_render_faq_jsonld( $post_id ) {
 
 	$main_entities = array();
 	foreach ( $faqs as $f ) {
-		$q = fqj_question_text( $f );
-		$a = fqj_answer_text( $f );
+		$q = rfsd_question_text( $f );
+		$a = rfsd_answer_text( $f );
 		if ( empty( $q ) || empty( $a ) ) {
 			continue;
 		}

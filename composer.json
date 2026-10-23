@@ -1,9 +1,9 @@
 {
-  "name": "renderbit/faq-jsonld",
+  "name": "renderbit/renderbit-faq-structured-data",
   "description": "WordPress plugin to manage FAQ items as CPT and inject FAQ JSON-LD with advanced caching and queueing.",
   "type": "wordpress-plugin",
   "license": "GPL-2.0-or-later",
-  "version": "3.1.0",
+  "version": "4.0.0",
   "keywords": ["wordpress", "plugin", "faq", "json-ld", "schema", "cpt"],
   "authors": [
     {
@@ -21,11 +21,11 @@
   },
   "autoload": {
     "psr-4": {
-      "FQJ\\": "includes/"
+      "RFSD\\": "includes/"
     }
   },
   "extra": {
-    "installer-name": "faq-jsonld"
+    "installer-name": "renderbit-faq-structured-data"
   },
   "config": {
     "allow-plugins": {
@@ -37,8 +37,8 @@
     }
   },
   "scripts": {
-    "build-zip": "rm -f faq-jsonld.zip && git archive --format=zip --prefix=faq-jsonld/ -o faq-jsonld.zip HEAD",
-    "check-zip": "bash bin/check-zip.sh faq-jsonld.zip",
+    "build-zip": "rm -f renderbit-faq-structured-data.zip && git archive --format=zip --prefix=renderbit-faq-structured-data/ -o renderbit-faq-structured-data.zip HEAD",
+    "check-zip": "bash bin/check-zip.sh renderbit-faq-structured-data.zip",
     "lint": "phpcs",
     "test": "phpunit",
     "test:multisite": "phpunit -c phpunit-multisite.xml.dist",

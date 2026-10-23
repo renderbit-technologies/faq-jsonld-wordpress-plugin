@@ -1,10 +1,10 @@
-=== FAQ JSON-LD Manager ===
+=== Renderbit FAQ Structured Data ===
 Contributors: renderbit
 Tags: faq, schema, json-ld, structured data, seo
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 3.1.0
+Stable tag: 4.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -12,7 +12,7 @@ Manage FAQ items as a custom post type and output FAQPage JSON-LD on the posts a
 
 == Description ==
 
-FAQ JSON-LD Manager keeps your FAQs in one place and adds schema.org `FAQPage` structured data to the content they belong to. Write each question and answer once as an FAQ item, then attach it to the posts, post types, taxonomy terms or URLs where it should appear, or make it global.
+Renderbit FAQ Structured Data keeps your FAQs in one place and adds schema.org `FAQPage` structured data to the content they belong to. Write each question and answer once as an FAQ item, then attach it to the posts, post types, taxonomy terms or URLs where it should appear, or make it global.
 
 Built for large sites:
 
@@ -30,21 +30,21 @@ Built for large sites:
 
 = WP-CLI commands =
 
-* `wp fqj purge-transients` purges all cached FAQ JSON-LD.
-* `wp fqj process-queue [--limit=N]` processes the invalidation queue.
-* `wp fqj queue-info` shows the number of pending queue items.
+* `wp rfsd purge-transients` purges all cached FAQ JSON-LD.
+* `wp rfsd process-queue [--limit=N]` processes the invalidation queue.
+* `wp rfsd queue-info` shows the number of pending queue items.
 
 = Developer filters =
 
-* `fqj_question_text( $text, $faq_post )` filters the plain-text question.
-* `fqj_answer_text( $text, $faq_post )` filters the plain-text answer.
-* `fqj_uninstall_delete_faqs` (default `false`): return `true` to delete `faq_item` posts when the plugin is deleted.
+* `rfsd_question_text( $text, $faq_post )` filters the plain-text question.
+* `rfsd_answer_text( $text, $faq_post )` filters the plain-text answer.
+* `rfsd_uninstall_delete_faqs` (default `false`): return `true` to delete FAQ posts when the plugin is deleted.
 
 Development happens on [GitHub](https://github.com/renderbit-technologies/faq-jsonld-wordpress-plugin).
 
 == Installation ==
 
-1. Install the plugin from Plugins > Add New, or upload the `faq-jsonld` folder to `wp-content/plugins/`.
+1. Install the plugin from Plugins > Add New, or upload the `renderbit-faq-structured-data` folder to `wp-content/plugins/`.
 2. Activate it. The mapping table is created automatically.
 3. Add questions under FAQ Items and use the association box on each item to choose where it appears.
 4. Adjust cache lifetime and batch size under FAQ Items > Settings.
@@ -63,11 +63,21 @@ Yes. Write answers in the editor as usual; blocks and shortcodes are rendered an
 
 Yes. "Purge all" bumps a cache generation number instead of deleting transients one by one, so it works with persistent object caches.
 
+= I used FAQ JSON-LD Manager. How do I switch? =
+
+Install and activate Renderbit FAQ Structured Data while the old plugin is still installed. On activation (and on each site of a network) it moves the FAQ items and their associations over and copies the settings. Then deactivate and delete FAQ JSON-LD Manager. Do not delete the old plugin first: its uninstall removes the FAQ associations.
+
 = What happens when I delete the plugin? =
 
-Its options, transients, scheduled events, post meta and mapping table are removed. FAQ item posts are kept unless you enable the `fqj_uninstall_delete_faqs` filter.
+Its options, transients, scheduled events, post meta and mapping table are removed. FAQ item posts are kept unless you enable the `rfsd_uninstall_delete_faqs` filter.
 
 == Changelog ==
+
+= 4.0.0 =
+* Renamed from FAQ JSON-LD Manager (`faq-jsonld`) to Renderbit FAQ Structured Data (`renderbit-faq-structured-data`). Install and activate this plugin first: it imports the FAQs, their associations and the settings of FAQ JSON-LD Manager on every site. Then deactivate and delete the old plugin. Deleting the old plugin first removes the FAQ associations.
+* Every name now uses the `rfsd_` prefix. The FAQ post type is `rfsd_faq` (was `faq_item`), the filters are `rfsd_question_text`, `rfsd_answer_text` and `rfsd_uninstall_delete_faqs` (were `fqj_*`), and the WP-CLI command is `wp rfsd` (was `wp fqj`). Update any custom code, bookmarks or scripts that use the old names.
+* The invalidation queue notice only appears on the plugin's own screens (FAQ list and editor, Health, Settings) instead of on every admin page, and can be translated.
+* Updated the bundled Select2 to 4.1.0.
 
 = 3.1.0 =
 * URL associations now mean the URL itself: a FAQ shows on whichever post has that permalink now. Before, saving a URL also tied the FAQ to the post found there, so it followed that post when it was renamed and appeared on shortlinks and the front page's slug URL.
@@ -91,6 +101,9 @@ Its options, transients, scheduled events, post meta and mapping table are remov
 * Uninstall, deactivation and multisite handling are complete.
 
 == Upgrade Notice ==
+
+= 4.0.0 =
+Replaces FAQ JSON-LD Manager. Activate this plugin before deleting the old one so your FAQs and settings are imported. Filters, the post type and the WP-CLI command now use the `rfsd` prefix.
 
 = 3.1.0 =
 URL associations now match the URL itself. The upgrade rewrites URLs that only matched the old way and lists every change on the FAQ list screen.

@@ -1,5 +1,6 @@
+/* global rfsdHealth */
 jQuery(document).ready(function ($) {
-  // Strings come from wp_localize_script (fqjHealth.i18n); English is the fallback.
+  // Strings come from wp_localize_script (rfsdHealth.i18n); English is the fallback.
   var i18n = $.extend(
     {
       processing: "Processing…",
@@ -19,22 +20,22 @@ jQuery(document).ready(function ($) {
       clearConfirm: "Clear invalidation log? This will remove recent run history.",
       notAvailable: "n/a"
     },
-    (window.fqjHealth && window.fqjHealth.i18n) || {}
+    (window.rfsdHealth && window.rfsdHealth.i18n) || {}
   );
 
-  $("#fqj-process-now").on("click", function (e) {
+  $("#rfsd-process-now").on("click", function (e) {
     e.preventDefault();
-    var $status = $("#fqj-action-status").text(i18n.processing);
+    var $status = $("#rfsd-action-status").text(i18n.processing);
     $.post(
-      fqjHealth.ajax_url,
+      rfsdHealth.ajax_url,
       {
-        action: "fqj_process_queue_now",
-        nonce: fqjHealth.nonce
+        action: "rfsd_process_queue_now",
+        nonce: rfsdHealth.nonce
       },
       function (resp) {
         if (resp.success) {
-          $("#fqj-queue-count").text(resp.data.queue_len);
-          $("#fqj-last-run").text(resp.data.last_run_human || i18n.notAvailable);
+          $("#rfsd-queue-count").text(resp.data.queue_len);
+          $("#rfsd-last-run").text(resp.data.last_run_human || i18n.notAvailable);
           $status.text(i18n.processed.replace("%d", resp.data.processed));
         } else {
           $status.text(
@@ -51,18 +52,18 @@ jQuery(document).ready(function ($) {
     });
   });
 
-  $("#fqj-purge-transients").on("click", function (e) {
+  $("#rfsd-purge-transients").on("click", function (e) {
     e.preventDefault();
     if (
       !confirm(i18n.purgeConfirm)
     )
       return;
-    var $status = $("#fqj-action-status").text(i18n.purging);
+    var $status = $("#rfsd-action-status").text(i18n.purging);
     $.post(
-      fqjHealth.ajax_url,
+      rfsdHealth.ajax_url,
       {
-        action: "fqj_purge_transients",
-        nonce: fqjHealth.nonce
+        action: "rfsd_purge_transients",
+        nonce: rfsdHealth.nonce
       },
       function (resp) {
         if (resp.success) {
@@ -76,18 +77,18 @@ jQuery(document).ready(function ($) {
     });
   });
 
-  $("#fqj-clear-log").on("click", function (e) {
+  $("#rfsd-clear-log").on("click", function (e) {
     e.preventDefault();
     if (
       !confirm(i18n.clearConfirm)
     )
       return;
-    var $status = $("#fqj-action-status").text(i18n.clearing);
+    var $status = $("#rfsd-action-status").text(i18n.clearing);
     $.post(
-      fqjHealth.ajax_url,
+      rfsdHealth.ajax_url,
       {
-        action: "fqj_clear_invalidation_log",
-        nonce: fqjHealth.nonce
+        action: "rfsd_clear_invalidation_log",
+        nonce: rfsdHealth.nonce
       },
       function (resp) {
         if (resp.success) {

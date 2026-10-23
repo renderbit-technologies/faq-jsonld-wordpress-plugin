@@ -1,4 +1,4 @@
-# FAQ JSON-LD Manager
+# Renderbit FAQ Structured Data
 
 ![WordPress Plugin](https://img.shields.io/badge/WordPress-Plugin-21759B?logo=wordpress&logoColor=fff)
 ![PHP](https://img.shields.io/badge/PHP-%E2%89%A5%207.2-777BB4?logo=php&logoColor=fff)
@@ -13,8 +13,8 @@ A WordPress plugin to manage FAQ items as a custom post type (CPT) and inject FA
 
 ## Features
 
-- **Custom Post Type:** Manage FAQ items via the `faq_item` CPT.
-- **Mapping Table:** Fast MySQL table (`fqj_mappings`) links FAQ items to posts, post types, terms, URLs, or global context.
+- **Custom Post Type:** Manage FAQ items via the `rfsd_faq` CPT (the old FAQ JSON-LD Manager plugin used `faq_item`; its FAQs are imported on activation).
+- **Mapping Table:** Fast MySQL table (`rfsd_mappings`) links FAQ items to posts, post types, terms, URLs, or global context.
 - **JSON-LD Output:** Injects FAQ schema on the frontend, with per-post transient caching.
 - **Cache Invalidation:** Background queue (WP-Cron or WP-CLI) for efficient cache purging.
 - **Admin UI:** Meta boxes and settings for mapping, output, and diagnostics.
@@ -34,37 +34,37 @@ A WordPress plugin to manage FAQ items as a custom post type (CPT) and inject FA
 - **Singular content only:** JSON-LD is printed on singular views (posts, pages, custom post types). Blog home, archives and search results never output FAQ markup, so URL mappings apply to singular content only (archive URLs are not matched).
 - **Output:** Markup is schema.org `FAQPage`. Question and answer text is plain text: tags stripped, entities decoded, whitespace collapsed. Answers run through blocks and shortcodes but not the `the_content` filter.
 - **Settings:** Configure cache TTL and invalidation batch size (10-5000) under the FAQ Items > Settings menu.
-- **Translations:** Strings use the `faq-jsonld` text domain (loaded just-in-time by WordPress 4.6+); admin JS strings are localized through `wp_localize_script`.
+- **Translations:** Strings use the `renderbit-faq-structured-data` text domain (loaded just-in-time by WordPress 4.6+); admin JS strings are localized through `wp_localize_script`.
 - **Requirements:** WordPress 6.5+, PHP 7.2+.
 - **Health:** Monitor queue/logs and run manual actions under FAQ Items > Health.
 - **WP-CLI:**
-  - `wp fqj purge-transients` — Purge all FAQ JSON-LD transients.
-  - `wp fqj process-queue [--limit=N]` — Process the invalidation queue.
-  - `wp fqj queue-info` — Show the number of pending queue items.
+  - `wp rfsd purge-transients` — Purge all FAQ JSON-LD transients.
+  - `wp rfsd process-queue [--limit=N]` — Process the invalidation queue.
+  - `wp rfsd queue-info` — Show the number of pending queue items.
 
 ## Developer Notes
 
 ### Filters
 
-- `fqj_question_text( $text, $faq_post )` — filter the plain-text question for a FAQ item.
-- `fqj_answer_text( $text, $faq_post )` — filter the plain-text answer. Return plain text; the JSON encoder escapes `<`, `>` and `&`. Cached output is cleared on settings changes or with `wp fqj purge-transients`.
+- `rfsd_question_text( $text, $faq_post )` — filter the plain-text question for a FAQ item.
+- `rfsd_answer_text( $text, $faq_post )` — filter the plain-text answer. Return plain text; the JSON encoder escapes `<`, `>` and `&`. Cached output is cleared on settings changes or with `wp rfsd purge-transients`.
 
 - **Key Files:**
-  - `faq-jsonld.php`: Main loader and CPT registration
+  - `renderbit-faq-structured-data.php`: Main loader and CPT registration
   - `includes/indexer.php`: Mapping table logic
   - `includes/queue.php`: Invalidation queue
   - `includes/frontend.php`: JSON-LD output/caching
   - `includes/admin.php`: Admin UI/meta boxes
   - `includes/settings.php`: Settings page
   - `includes/health.php`: Health/diagnostics UI
-  - `includes/class-fqjcli.php`: WP-CLI commands
-  - `assets/js/fqj-admin.js`, `assets/js/fqj-health.js`: Admin JS (Select2 is bundled in `assets/vendor/select2`)
+  - `includes/class-rfsd-cli.php`: WP-CLI commands
+  - `assets/js/rfsd-admin.js`, `assets/js/rfsd-health.js`: Admin JS (Select2 is bundled in `assets/vendor/select2`)
 - **Mapping Types:** All associations are stored in a single table for fast lookups.
-- **Transient Keys:** `fqj_faq_json_{generation}_{post_id}` (build with `fqj_cache_key( $post_id )`). "Purge all" bumps the `fqj_cache_gen` option, which works with persistent object caches too.
-- **Uninstall:** Deleting the plugin removes its options, transients, cron events, post meta and mapping table (on every site of a multisite network). `faq_item` posts are kept by default; to delete them as well, add `add_filter( 'fqj_uninstall_delete_faqs', '__return_true' );` (e.g. in a mu-plugin) before deleting the plugin.
-- **Admin JS:** Uses Select2 for post selectors, AJAX for search (`fqj_search_posts` action; all public post types except attachments and FAQs). Switching the association type keeps each type's in-progress selection until you save; only the selected type is stored.
+- **Transient Keys:** `rfsd_faq_json_{generation}_{post_id}` (build with `rfsd_cache_key( $post_id )`). "Purge all" bumps the `rfsd_cache_gen` option, which works with persistent object caches too.
+- **Uninstall:** Deleting the plugin removes its options, transients, cron events, post meta and mapping table (on every site of a multisite network). FAQ posts are kept by default; to delete them as well, add `add_filter( 'rfsd_uninstall_delete_faqs', '__return_true' );` (e.g. in a mu-plugin) before deleting the plugin.
+- **Admin JS:** Uses Select2 for post selectors, AJAX for search (`rfsd_search_posts` action; all public post types except attachments and FAQs). Switching the association type keeps each type's in-progress selection until you save; only the selected type is stored.
 - **Background Processing:** The invalidation queue lives in a database table and is processed every 5 minutes by WP-Cron (up to the batch size per run), or on demand from the Health page or WP-CLI.
-- **Asset versions:** The plugin's own JS is versioned with `FQJ_VERSION`; keep it in sync with the `Version` header when releasing.
+- **Asset versions:** The plugin's own JS is versioned with `RFSD_VERSION`; keep it in sync with the `Version` header when releasing.
 
 ## Testing
 

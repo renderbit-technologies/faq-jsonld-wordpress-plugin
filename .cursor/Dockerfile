@@ -24,7 +24,7 @@ RUN printf '%s\n' \
 	'export WP_TESTS_DB_USER=root' \
 	'export WP_TESTS_DB_PASSWORD=root' \
 	'export WP_TESTS_DB_HOST=127.0.0.1' \
-	> /etc/profile.d/fqj-wp-tests-db.sh
+	> /etc/profile.d/rfsd-wp-tests-db.sh
 
 RUN echo 'ubuntu ALL=(ALL) NOPASSWD: /usr/sbin/service mariadb *' > /etc/sudoers.d/mariadb \
 	&& chmod 440 /etc/sudoers.d/mariadb

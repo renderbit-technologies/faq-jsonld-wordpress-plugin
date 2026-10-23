@@ -40,6 +40,6 @@ jobs:
           name: Release ${{ env.TAG_NAME }}
           draft: true
           generate_release_notes: true
-          files: faq-jsonld.zip
+          files: renderbit-faq-structured-data.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

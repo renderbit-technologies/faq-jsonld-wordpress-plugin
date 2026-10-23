@@ -2,13 +2,13 @@
 /**
  * Coverage module: the forward lookup and the inverse (posts covered by a mapping) must agree.
  *
- * @package FAQ_JSON_LD
+ * @package Renderbit_FAQ_Structured_Data
  */
 
 /**
  * Coverage tests.
  */
-class Test_FQJ_Coverage extends FQJ_TestCase {
+class Test_RFSD_Coverage extends RFSD_TestCase {
 
 	/**
 	 * Fixture post IDs by name.
@@ -22,16 +22,16 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 	 */
 	public function set_up() {
 		parent::set_up();
-		register_post_type( 'fqj_book', array( 'public' => true ) );
-		register_taxonomy( 'fqj_genre', 'fqj_book', array( 'public' => true ) );
+		register_post_type( 'rfsd_book', array( 'public' => true ) );
+		register_taxonomy( 'rfsd_genre', 'rfsd_book', array( 'public' => true ) );
 	}
 
 	/**
 	 * Remove the custom post type and taxonomy.
 	 */
 	public function tear_down() {
-		unregister_taxonomy( 'fqj_genre' );
-		unregister_post_type( 'fqj_book' );
+		unregister_taxonomy( 'rfsd_genre' );
+		unregister_post_type( 'rfsd_book' );
 		parent::tear_down();
 	}
 
@@ -43,7 +43,7 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 		$category = self::factory()->category->create( array( 'name' => 'News' ) );
 		$genre    = self::factory()->term->create(
 			array(
-				'taxonomy' => 'fqj_genre',
+				'taxonomy' => 'rfsd_genre',
 				'name'     => 'Fantasy',
 			)
 		);
@@ -62,11 +62,11 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 		);
 		$this->posts['book'] = self::factory()->post->create(
 			array(
-				'post_type'  => 'fqj_book',
+				'post_type'  => 'rfsd_book',
 				'post_title' => 'Dragons',
 			)
 		);
-		wp_set_object_terms( $this->posts['book'], array( $genre ), 'fqj_genre' );
+		wp_set_object_terms( $this->posts['book'], array( $genre ), 'rfsd_genre' );
 		$this->posts['private'] = self::factory()->post->create(
 			array(
 				'post_title'    => 'Secret',
@@ -74,7 +74,7 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 				'post_category' => array( $category ),
 			)
 		);
-		$this->posts['draft'] = self::factory()->post->create(
+		$this->posts['draft']   = self::factory()->post->create(
 			array(
 				'post_title'    => 'Later',
 				'post_status'   => 'draft',
@@ -87,7 +87,7 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 			$this->create_faq( 'Post?', 'Yes.', array( 'posts' => array( $post_id ) ) );
 			$this->create_faq( 'URL?', 'Yes.', array( 'urls' => array( get_permalink( $post_id ) ) ) );
 		}
-		foreach ( array( 'page', 'post', 'fqj_book' ) as $post_type ) {
+		foreach ( array( 'page', 'post', 'rfsd_book' ) as $post_type ) {
 			$this->create_faq( 'Type?', 'Yes.', array( 'post_types' => array( $post_type ) ) );
 		}
 		foreach ( array( $category, $genre ) as $term_id ) {
@@ -104,7 +104,7 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 	private function all_mappings() {
 		global $wpdb;
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
-		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT faq_id, mapping_type, mapping_value FROM %i', fqj_table_name() ), ARRAY_A );
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT faq_id, mapping_type, mapping_value FROM %i', rfsd_table_name() ), ARRAY_A );
 
 		$mappings = array();
 		foreach ( $rows as $row ) {
@@ -157,18 +157,18 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 			$mapping = $entry['mapping'];
 			$label   = $mapping['type'] . ' ' . $mapping['value'];
 
-			if ( fqj_mapping_covers_everything( $mapping ) ) {
+			if ( rfsd_mapping_covers_everything( $mapping ) ) {
 				$this->assertSame( 'global', $mapping['type'], $label );
 				foreach ( $this->posts as $name => $post_id ) {
-					$this->assertNotEmpty( array_intersect( $entry['faq_ids'], fqj_faq_ids_for_post( $post_id ) ), "{$label} must match {$name}" );
+					$this->assertNotEmpty( array_intersect( $entry['faq_ids'], rfsd_faq_ids_for_post( $post_id ) ), "{$label} must match {$name}" );
 				}
 				continue;
 			}
 
-			$covered = fqj_posts_covered_by_mapping( $mapping, 0, 1000 );
+			$covered = rfsd_posts_covered_by_mapping( $mapping, 0, 1000 );
 			foreach ( $this->posts as $name => $post_id ) {
-				$matches = fqj_post_is_coverable( $post_id )
-					&& array() !== array_intersect( $entry['faq_ids'], fqj_faq_ids_for_post( $post_id ) );
+				$matches = rfsd_post_is_coverable( $post_id )
+					&& array() !== array_intersect( $entry['faq_ids'], rfsd_faq_ids_for_post( $post_id ) );
 				$this->assertSame( $matches, in_array( $post_id, $covered, true ), "{$label} covering {$name}" );
 			}
 		}
@@ -177,11 +177,11 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 	public function test_only_published_posts_are_coverable() {
 		$this->create_fixtures();
 
-		$this->assertTrue( fqj_post_is_coverable( $this->posts['page'] ) );
-		$this->assertTrue( fqj_post_is_coverable( $this->posts['book'] ) );
-		$this->assertFalse( fqj_post_is_coverable( $this->posts['private'] ) );
-		$this->assertFalse( fqj_post_is_coverable( $this->posts['draft'] ) );
-		$this->assertFalse( fqj_post_is_coverable( 0 ) );
+		$this->assertTrue( rfsd_post_is_coverable( $this->posts['page'] ) );
+		$this->assertTrue( rfsd_post_is_coverable( $this->posts['book'] ) );
+		$this->assertFalse( rfsd_post_is_coverable( $this->posts['private'] ) );
+		$this->assertFalse( rfsd_post_is_coverable( $this->posts['draft'] ) );
+		$this->assertFalse( rfsd_post_is_coverable( 0 ) );
 	}
 
 	public function test_faq_ids_for_post_are_ascending_and_unique() {
@@ -189,10 +189,19 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 		$second  = $this->create_faq( 'B?', 'B.', array( 'posts' => array( $post_id ) ) );
 		$first   = $this->create_faq( 'A?', 'A.', array( 'post_types' => array( 'post' ) ) );
 		$this->create_faq( 'C?', 'C.', array( 'posts' => array( self::factory()->post->create() ) ) );
-		update_post_meta( $first, 'fqj_assoc_data_json', wp_json_encode( array( 'posts' => array( $post_id ), 'post_types' => array( 'post' ) ) ) );
-		fqj_rebuild_index_for_faq( $first );
+		update_post_meta(
+			$first,
+			'rfsd_assoc_data_json',
+			wp_json_encode(
+				array(
+					'posts'      => array( $post_id ),
+					'post_types' => array( 'post' ),
+				)
+			)
+		);
+		rfsd_rebuild_index_for_faq( $first );
 
-		$this->assertSame( array( $second, $first ), fqj_faq_ids_for_post( $post_id ) );
+		$this->assertSame( array( $second, $first ), rfsd_faq_ids_for_post( $post_id ) );
 	}
 
 	public function test_covered_posts_respect_cursor_and_limit() {
@@ -203,11 +212,11 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 			'value' => 'post',
 		);
 
-		$this->assertSame( array( $ids[1] ), fqj_posts_covered_by_mapping( $mapping, $ids[0], 1 ) );
-		$this->assertSame( array( $ids[2] ), fqj_posts_covered_by_mapping( $mapping, $ids[1], 10 ) );
+		$this->assertSame( array( $ids[1] ), rfsd_posts_covered_by_mapping( $mapping, $ids[0], 1 ) );
+		$this->assertSame( array( $ids[2] ), rfsd_posts_covered_by_mapping( $mapping, $ids[1], 10 ) );
 		$this->assertSame(
 			array(),
-			fqj_posts_covered_by_mapping(
+			rfsd_posts_covered_by_mapping(
 				array(
 					'type'  => 'post',
 					'value' => $ids[0],
@@ -219,7 +228,7 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 	}
 
 	/**
-	 * @expectedIncorrectUsage fqj_posts_covered_by_mapping
+	 * @expectedIncorrectUsage rfsd_posts_covered_by_mapping
 	 */
 	public function test_covered_posts_for_global_is_a_programming_error() {
 		self::factory()->post->create();
@@ -228,14 +237,14 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 			'value' => '1',
 		);
 
-		$this->assertTrue( fqj_mapping_covers_everything( $mapping ) );
-		$this->assertSame( array(), fqj_posts_covered_by_mapping( $mapping ) );
+		$this->assertTrue( rfsd_mapping_covers_everything( $mapping ) );
+		$this->assertSame( array(), rfsd_posts_covered_by_mapping( $mapping ) );
 	}
 
 	public function test_normalize_url_is_idempotent() {
 		foreach ( array( 'https://example.org/a/b/#x', 'https://example.org/?p=5&utm_source=x', 'https://example.org/' ) as $url ) {
-			$once = fqj_normalize_url( $url );
-			$this->assertSame( $once, fqj_normalize_url( $once ), $url );
+			$once = rfsd_normalize_url( $url );
+			$this->assertSame( $once, rfsd_normalize_url( $once ), $url );
 		}
 	}
 
@@ -250,40 +259,40 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 		update_option( 'show_on_front', 'page' );
 		update_option( 'page_on_front', $page );
 
-		$this->assertSame( $post, fqj_post_for_url( get_permalink( $post ) ) );
-		$this->assertSame( $post, fqj_post_for_url( '/hello/' ) );
-		$this->assertSame( $post, fqj_post_for_url( 'https://www.example.org/hello?utm=x#top' ) );
-		$this->assertSame( 0, fqj_post_for_url( home_url( '/?p=' . $post ) ), 'A shortlink is not the permalink.' );
-		$this->assertSame( $post, fqj_post_routed_from_url( home_url( '/?p=' . $post ) ) );
-		$this->assertSame( $page, fqj_post_for_url( home_url( '/' ) ) );
-		$this->assertSame( 0, fqj_post_for_url( home_url( '/welcome/' ) ), 'The front page slug URL is not its permalink.' );
-		$this->assertSame( $page, fqj_post_routed_from_url( home_url( '/welcome/' ) ) );
-		$this->assertSame( 0, fqj_post_for_url( 'https://external.example.net/hello' ) );
-		$this->assertSame( 0, fqj_post_routed_from_url( 'https://external.example.net/hello' ) );
+		$this->assertSame( $post, rfsd_post_for_url( get_permalink( $post ) ) );
+		$this->assertSame( $post, rfsd_post_for_url( '/hello/' ) );
+		$this->assertSame( $post, rfsd_post_for_url( 'https://www.example.org/hello?utm=x#top' ) );
+		$this->assertSame( 0, rfsd_post_for_url( home_url( '/?p=' . $post ) ), 'A shortlink is not the permalink.' );
+		$this->assertSame( $post, rfsd_post_routed_from_url( home_url( '/?p=' . $post ) ) );
+		$this->assertSame( $page, rfsd_post_for_url( home_url( '/' ) ) );
+		$this->assertSame( 0, rfsd_post_for_url( home_url( '/welcome/' ) ), 'The front page slug URL is not its permalink.' );
+		$this->assertSame( $page, rfsd_post_routed_from_url( home_url( '/welcome/' ) ) );
+		$this->assertSame( 0, rfsd_post_for_url( 'https://external.example.net/hello' ) );
+		$this->assertSame( 0, rfsd_post_routed_from_url( 'https://external.example.net/hello' ) );
 	}
 
 	public function test_post_for_url_resolves_custom_post_types_with_plain_permalinks() {
 		$this->set_permalink_structure( '' );
 		$book = self::factory()->post->create(
 			array(
-				'post_type' => 'fqj_book',
+				'post_type' => 'rfsd_book',
 				'post_name' => 'dragons',
 			)
 		);
 
-		$this->assertSame( '/?fqj_book=dragons', fqj_normalize_url( get_permalink( $book ) ) );
-		$this->assertSame( $book, fqj_post_for_url( get_permalink( $book ) ) );
-		$this->assertSame( 0, fqj_post_for_url( home_url( '/?fqj_book=nothing' ) ) );
+		$this->assertSame( '/?rfsd_book=dragons', rfsd_normalize_url( get_permalink( $book ) ) );
+		$this->assertSame( $book, rfsd_post_for_url( get_permalink( $book ) ) );
+		$this->assertSame( 0, rfsd_post_for_url( home_url( '/?rfsd_book=nothing' ) ) );
 	}
 
 	public function test_normalize_url_below_a_subdirectory_home() {
 		update_option( 'home', 'http://example.org/blog' );
 
-		$this->assertSame( '/about', fqj_normalize_url( 'http://example.org/blog/about/' ) );
-		$this->assertSame( '/', fqj_normalize_url( 'https://example.org/blog/' ) );
-		$this->assertSame( '/?p=3', fqj_normalize_url( 'http://example.org/blog/?p=3' ) );
-		$this->assertSame( 'http://example.org/blogroll', fqj_normalize_url( 'http://example.org/blogroll/' ) );
-		$this->assertSame( 'http://example.org/other', fqj_normalize_url( 'http://example.org/other' ) );
+		$this->assertSame( '/about', rfsd_normalize_url( 'http://example.org/blog/about/' ) );
+		$this->assertSame( '/', rfsd_normalize_url( 'https://example.org/blog/' ) );
+		$this->assertSame( '/?p=3', rfsd_normalize_url( 'http://example.org/blog/?p=3' ) );
+		$this->assertSame( 'http://example.org/blogroll', rfsd_normalize_url( 'http://example.org/blogroll/' ) );
+		$this->assertSame( 'http://example.org/other', rfsd_normalize_url( 'http://example.org/other' ) );
 	}
 
 	/**
@@ -309,9 +318,9 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 	 * @param string $value  New value.
 	 */
 	public function test_url_settings_change_purges_all_cached_output( $option, $value ) {
-		$generation = fqj_cache_generation();
+		$generation = rfsd_cache_generation();
 		update_option( $option, $value );
-		$this->assertGreaterThan( $generation, fqj_cache_generation() );
+		$this->assertGreaterThan( $generation, rfsd_cache_generation() );
 	}
 
 	public function test_renaming_a_parent_invalidates_descendants() {
@@ -337,9 +346,9 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 		);
 		$other      = self::factory()->post->create( array( 'post_type' => 'page' ) );
 		$this->create_faq( 'Child?', 'Yes.', array( 'urls' => array( get_permalink( $child ) ) ) );
-		$this->assertSame( array( $child, $grandchild ), fqj_descendant_post_ids( $parent ) );
+		$this->assertSame( array( $child, $grandchild ), rfsd_descendant_post_ids( $parent ) );
 
-		fqj_queue_pop_posts( 1000 );
+		rfsd_queue_pop_posts( 1000 );
 		wp_update_post(
 			array(
 				'ID'         => $parent,
@@ -356,6 +365,6 @@ class Test_FQJ_Coverage extends FQJ_TestCase {
 		);
 		$this->assertEqualSets( array( $child, $grandchild ), $this->get_queue() );
 		$this->assertNotContains( $other, $this->get_queue() );
-		$this->assertSame( array(), fqj_faq_ids_for_post( $child ), 'The URL association no longer matches the moved child.' );
+		$this->assertSame( array(), rfsd_faq_ids_for_post( $child ), 'The URL association no longer matches the moved child.' );
 	}
 }

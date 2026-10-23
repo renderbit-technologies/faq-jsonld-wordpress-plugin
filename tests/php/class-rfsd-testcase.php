@@ -2,7 +2,7 @@
 /**
  * Shared helpers for plugin tests.
  *
- * @package FAQ_JSON_LD
+ * @package Renderbit_FAQ_Structured_Data
  */
 
 // phpcs:disable WordPress.Files.FileName
@@ -10,7 +10,7 @@
 /**
  * Base test case.
  */
-abstract class FQJ_TestCase extends WP_UnitTestCase {
+abstract class RFSD_TestCase extends WP_UnitTestCase {
 
 	/**
 	 * Use pretty permalinks so URL mappings resolve to distinct paths.
@@ -41,15 +41,15 @@ abstract class FQJ_TestCase extends WP_UnitTestCase {
 	protected function create_faq( $question = 'What is it?', $answer = 'It is a thing.', $payload = null ) {
 		$faq_id = self::factory()->post->create(
 			array(
-				'post_type'    => 'faq_item',
+				'post_type'    => 'rfsd_faq',
 				'post_status'  => 'publish',
 				'post_title'   => $question,
 				'post_content' => $answer,
 			)
 		);
 		if ( null !== $payload ) {
-			update_post_meta( $faq_id, 'fqj_assoc_data_json', wp_json_encode( $payload ) );
-			fqj_rebuild_index_for_faq( $faq_id );
+			update_post_meta( $faq_id, 'rfsd_assoc_data_json', wp_json_encode( $payload ) );
+			rfsd_rebuild_index_for_faq( $faq_id );
 		}
 
 		return $faq_id;
@@ -63,7 +63,7 @@ abstract class FQJ_TestCase extends WP_UnitTestCase {
 	 */
 	protected function get_mappings( $faq_id ) {
 		global $wpdb;
-		$table = fqj_table_name();
+		$table = rfsd_table_name();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		return $wpdb->get_results( $wpdb->prepare( "SELECT mapping_type, mapping_value FROM {$table} WHERE faq_id = %d ORDER BY id", $faq_id ), ARRAY_A );
 	}
@@ -75,7 +75,7 @@ abstract class FQJ_TestCase extends WP_UnitTestCase {
 	 */
 	protected function get_queue() {
 		global $wpdb;
-		$table = fqj_queue_table_name();
+		$table = rfsd_queue_table_name();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		return array_map( 'intval', $wpdb->get_col( "SELECT item_value FROM {$table} WHERE item_type = 'post' ORDER BY id" ) );
 	}
@@ -87,7 +87,7 @@ abstract class FQJ_TestCase extends WP_UnitTestCase {
 	 */
 	protected function get_queue_jobs() {
 		global $wpdb;
-		$table = fqj_queue_table_name();
+		$table = rfsd_queue_table_name();
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 		return $wpdb->get_results( "SELECT item_type, item_value, job_cursor FROM {$table} WHERE item_type <> 'post' ORDER BY id", ARRAY_A );
 	}
@@ -101,7 +101,7 @@ abstract class FQJ_TestCase extends WP_UnitTestCase {
 	protected function render_head_for( $post_id ) {
 		$this->go_to( get_permalink( $post_id ) );
 		ob_start();
-		fqj_maybe_print_faq_jsonld();
+		rfsd_maybe_print_faq_jsonld();
 
 		return ob_get_clean();
 	}

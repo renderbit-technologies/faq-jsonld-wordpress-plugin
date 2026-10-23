@@ -1,7 +1,7 @@
 {
-  "name": "faq-jsonld",
+  "name": "renderbit-faq-structured-data",
   "private": true,
-  "description": "Tests for the FAQ JSON-LD admin scripts.",
+  "description": "Tests for the Renderbit FAQ Structured Data admin scripts.",
   "license": "GPL-2.0-or-later",
   "scripts": {
     "test": "jest"

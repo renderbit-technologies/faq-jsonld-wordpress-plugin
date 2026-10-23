@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a bug or issue with the FAQ JSON-LD Manager plugin
+description: Report a bug or issue with the Renderbit FAQ Structured Data plugin
 title: "[Bug]: "
 labels: ["bug"]
 body:
@@ -12,7 +12,7 @@ body:
     id: version
     attributes:
       label: Plugin Version
-      description: What version of FAQ JSON-LD Manager are you using?
+      description: What version of Renderbit FAQ Structured Data are you using?
       placeholder: e.g., 3.0.0
     validations:
       required: true

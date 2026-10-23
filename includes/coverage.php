@@ -5,7 +5,7 @@
  * The forward direction (lookup candidates and FAQ IDs for a post) and the inverse direction (posts covered
  * by a mapping) live together so they stay in agreement. See CONTEXT.md for the terms used here.
  *
- * @package FAQ_JSON_LD
+ * @package Renderbit_FAQ_Structured_Data
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * @return string[]
  */
-function fqj_identifying_query_args() {
+function rfsd_identifying_query_args() {
 	$args = array( 'p', 'page_id', 'attachment_id' );
 	foreach ( get_post_types( array( 'publicly_queryable' => true ), 'objects' ) as $type ) {
 		if ( is_string( $type->query_var ) && '' !== $type->query_var ) {
@@ -37,9 +37,9 @@ function fqj_identifying_query_args() {
  *
  * @return string[] Host, then path.
  */
-function fqj_site_root() {
+function rfsd_site_root() {
 	$home = wp_parse_url( home_url() );
-	$host = isset( $home['host'] ) ? fqj_bare_host( $home['host'], isset( $home['port'] ) ? $home['port'] : null ) : '';
+	$host = isset( $home['host'] ) ? rfsd_bare_host( $home['host'], isset( $home['port'] ) ? $home['port'] : null ) : '';
 	$path = isset( $home['path'] ) ? rtrim( $home['path'], '/' ) : '';
 
 	return array( $host, $path );
@@ -52,7 +52,7 @@ function fqj_site_root() {
  * @param int|null $port Port.
  * @return string
  */
-function fqj_bare_host( $host, $port = null ) {
+function rfsd_bare_host( $host, $port = null ) {
 	$host = preg_replace( '/^www\./', '', strtolower( (string) $host ) );
 
 	return null === $port ? $host : $host . ':' . (int) $port;
@@ -71,7 +71,7 @@ function fqj_bare_host( $host, $port = null ) {
  * @param string $url The URL.
  * @return string
  */
-function fqj_normalize_url( $url ) {
+function rfsd_normalize_url( $url ) {
 	$url   = trim( (string) $url );
 	$parts = explode( '?', (string) strtok( $url, '#' ), 2 );
 	$base  = $parts[0];
@@ -79,7 +79,7 @@ function fqj_normalize_url( $url ) {
 
 	if ( isset( $parts[1] ) && '' !== $parts[1] ) {
 		parse_str( $parts[1], $args );
-		$keep = array_intersect_key( $args, array_flip( fqj_identifying_query_args() ) );
+		$keep = array_intersect_key( $args, array_flip( rfsd_identifying_query_args() ) );
 		$keep = array_filter( $keep, 'is_scalar' );
 		if ( $keep ) {
 			ksort( $keep );
@@ -87,7 +87,7 @@ function fqj_normalize_url( $url ) {
 		}
 	}
 
-	$relative = fqj_site_relative_path( $base );
+	$relative = rfsd_site_relative_path( $base );
 	if ( null !== $relative ) {
 		$path = rtrim( $relative, '/' );
 		if ( '' !== $query ) {
@@ -110,7 +110,7 @@ function fqj_normalize_url( $url ) {
  * @param string $base URL without query string or fragment.
  * @return string|null Path starting with `/`, or null.
  */
-function fqj_site_relative_path( $base ) {
+function rfsd_site_relative_path( $base ) {
 	if ( '' !== $base && '/' === $base[0] && ( ! isset( $base[1] ) || '/' !== $base[1] ) ) {
 		return $base;
 	}
@@ -120,8 +120,8 @@ function fqj_site_relative_path( $base ) {
 		return null;
 	}
 
-	list( $site_host, $site_path ) = fqj_site_root();
-	if ( fqj_bare_host( $parts['host'], isset( $parts['port'] ) ? $parts['port'] : null ) !== $site_host ) {
+	list( $site_host, $site_path ) = rfsd_site_root();
+	if ( rfsd_bare_host( $parts['host'], isset( $parts['port'] ) ? $parts['port'] : null ) !== $site_host ) {
 		return null;
 	}
 
@@ -145,7 +145,7 @@ function fqj_site_relative_path( $base ) {
  * @param int $post_id Post ID.
  * @return array List of array( 'type' => ..., 'value' => ... ) with string values.
  */
-function fqj_lookup_candidates( $post_id ) {
+function rfsd_lookup_candidates( $post_id ) {
 	$post_id    = (int) $post_id;
 	$candidates = array();
 
@@ -179,7 +179,7 @@ function fqj_lookup_candidates( $post_id ) {
 	// URL mapping - the permalink, normalized the same way as the indexer.
 	$permalink = get_permalink( $post_id );
 	if ( $permalink ) {
-		$url = fqj_normalize_url( $permalink );
+		$url = rfsd_normalize_url( $permalink );
 
 		$candidates[] = array(
 			'type'  => 'url',
@@ -188,7 +188,7 @@ function fqj_lookup_candidates( $post_id ) {
 
 		// Until the data migration to version 3 has reindexed every FAQ, rows may still hold the absolute
 		// URL, with or without a trailing slash.
-		if ( version_compare( (string) get_option( FQJ_DATA_VERSION_OPTION, '0' ), '3', '<' ) ) {
+		if ( version_compare( (string) get_option( RFSD_DATA_VERSION_OPTION, '0' ), '3', '<' ) ) {
 			$legacy = untrailingslashit( home_url() ) . ( '/' === $url ? '' : $url );
 			foreach ( array( $url . '/', $legacy, $legacy . '/' ) as $value ) {
 				$candidates[] = array(
@@ -214,16 +214,16 @@ function fqj_lookup_candidates( $post_id ) {
  * @param int $post_id Post ID.
  * @return int[] Unique IDs in ascending order.
  */
-function fqj_faq_ids_for_post( $post_id ) {
+function rfsd_faq_ids_for_post( $post_id ) {
 	global $wpdb;
 
-	$candidates = fqj_lookup_candidates( $post_id );
+	$candidates = rfsd_lookup_candidates( $post_id );
 	if ( empty( $candidates ) ) {
 		return array();
 	}
 
 	// Exact matches only, so post ID 1 never matches 10, 11, etc.
-	$params = array( fqj_table_name() );
+	$params = array( rfsd_table_name() );
 	foreach ( $candidates as $c ) {
 		$params[] = $c['type'];
 		$params[] = (string) $c['value'];
@@ -240,13 +240,13 @@ function fqj_faq_ids_for_post( $post_id ) {
 /**
  * The post WordPress would route a URL to, without checking that the URL is that post's permalink.
  *
- * Covers shortlinks and old slugs too. Use fqj_post_for_url() to decide what a URL association covers.
+ * Covers shortlinks and old slugs too. Use rfsd_post_for_url() to decide what a URL association covers.
  *
  * @param string $url URL, absolute or relative to the site root.
  * @return int Post ID, or 0.
  */
-function fqj_post_routed_from_url( $url ) {
-	$normalized = fqj_normalize_url( $url );
+function rfsd_post_routed_from_url( $url ) {
+	$normalized = rfsd_normalize_url( $url );
 	if ( '' === $normalized || '/' !== $normalized[0] ) {
 		return 0;
 	}
@@ -282,15 +282,15 @@ function fqj_post_routed_from_url( $url ) {
  * @param string $url URL, absolute or relative to the site root.
  * @return int Post ID, or 0.
  */
-function fqj_post_for_url( $url ) {
-	$post_id = fqj_post_routed_from_url( $url );
+function rfsd_post_for_url( $url ) {
+	$post_id = rfsd_post_routed_from_url( $url );
 	if ( ! $post_id ) {
 		return 0;
 	}
 
 	$permalink = get_permalink( $post_id );
 
-	return $permalink && fqj_normalize_url( $permalink ) === fqj_normalize_url( $url ) ? $post_id : 0;
+	return $permalink && rfsd_normalize_url( $permalink ) === rfsd_normalize_url( $url ) ? $post_id : 0;
 }
 
 /**
@@ -299,7 +299,7 @@ function fqj_post_for_url( $url ) {
  * @param array $mapping Mapping with 'type' and 'value'.
  * @return bool
  */
-function fqj_mapping_covers_everything( $mapping ) {
+function rfsd_mapping_covers_everything( $mapping ) {
 	return isset( $mapping['type'] ) && 'global' === $mapping['type'];
 }
 
@@ -309,21 +309,21 @@ function fqj_mapping_covers_everything( $mapping ) {
  * @param int $post_id Post ID.
  * @return bool
  */
-function fqj_post_is_coverable( $post_id ) {
+function rfsd_post_is_coverable( $post_id ) {
 	return (int) $post_id > 0 && 'publish' === get_post_status( (int) $post_id );
 }
 
 /**
  * Coverable posts covered by a mapping, above a cursor.
  *
- * Not for mappings that cover everything (see fqj_mapping_covers_everything()).
+ * Not for mappings that cover everything (see rfsd_mapping_covers_everything()).
  *
  * @param array $mapping  Mapping with 'type' and 'value'.
  * @param int   $after_id Return IDs greater than this.
  * @param int   $limit    Maximum number of IDs.
  * @return int[] Published post IDs in ascending order.
  */
-function fqj_posts_covered_by_mapping( $mapping, $after_id = 0, $limit = 100 ) {
+function rfsd_posts_covered_by_mapping( $mapping, $after_id = 0, $limit = 100 ) {
 	global $wpdb;
 
 	$after_id = (int) $after_id;
@@ -334,7 +334,7 @@ function fqj_posts_covered_by_mapping( $mapping, $after_id = 0, $limit = 100 ) {
 		return array();
 	}
 
-	if ( fqj_mapping_covers_everything( $mapping ) ) {
+	if ( rfsd_mapping_covers_everything( $mapping ) ) {
 		_doing_it_wrong( __FUNCTION__, 'Mappings that cover everything have no post list; purge all cached output instead.', '3.0.2' );
 		return array();
 	}
@@ -343,8 +343,8 @@ function fqj_posts_covered_by_mapping( $mapping, $after_id = 0, $limit = 100 ) {
 	switch ( $type ) {
 		case 'post':
 		case 'url':
-			$pid = 'post' === $type ? (int) $value : fqj_post_for_url( $value );
-			if ( $pid > $after_id && fqj_post_is_coverable( $pid ) ) {
+			$pid = 'post' === $type ? (int) $value : rfsd_post_for_url( $value );
+			if ( $pid > $after_id && rfsd_post_is_coverable( $pid ) ) {
 				$ids = array( $pid );
 			}
 			break;
@@ -391,9 +391,9 @@ function fqj_posts_covered_by_mapping( $mapping, $after_id = 0, $limit = 100 ) {
  * @param bool   $append     Whether terms were appended.
  * @param array  $old_tt_ids Previous term taxonomy IDs.
  */
-function fqj_on_object_terms_set( $object_id, $terms, $tt_ids, $taxonomy, $append, $old_tt_ids ) {
+function rfsd_on_object_terms_set( $object_id, $terms, $tt_ids, $taxonomy, $append, $old_tt_ids ) {
 	$type = get_post_type( $object_id );
-	if ( ! $type || 'faq_item' === $type || wp_is_post_revision( $object_id ) ) {
+	if ( ! $type || RFSD_POST_TYPE === $type || wp_is_post_revision( $object_id ) ) {
 		return;
 	}
 	if ( ! $append ) {
@@ -405,9 +405,9 @@ function fqj_on_object_terms_set( $object_id, $terms, $tt_ids, $taxonomy, $appen
 			return;
 		}
 	}
-	delete_transient( fqj_cache_key( $object_id ) );
+	delete_transient( rfsd_cache_key( $object_id ) );
 }
-add_action( 'set_object_terms', 'fqj_on_object_terms_set', 10, 6 );
+add_action( 'set_object_terms', 'rfsd_on_object_terms_set', 10, 6 );
 
 /**
  * Drop a post's cached output when its permalink or visibility changes.
@@ -416,8 +416,8 @@ add_action( 'set_object_terms', 'fqj_on_object_terms_set', 10, 6 );
  * @param WP_Post $post_after  Post after the update.
  * @param WP_Post $post_before Post before the update.
  */
-function fqj_on_post_permalink_change( $post_id, $post_after, $post_before ) {
-	if ( 'faq_item' === $post_after->post_type || wp_is_post_revision( $post_id ) ) {
+function rfsd_on_post_permalink_change( $post_id, $post_after, $post_before ) {
+	if ( RFSD_POST_TYPE === $post_after->post_type || wp_is_post_revision( $post_id ) ) {
 		return;
 	}
 	if ( $post_after->post_name === $post_before->post_name
@@ -425,14 +425,14 @@ function fqj_on_post_permalink_change( $post_id, $post_after, $post_before ) {
 		&& $post_after->post_status === $post_before->post_status ) {
 		return;
 	}
-	delete_transient( fqj_cache_key( $post_id ) );
+	delete_transient( rfsd_cache_key( $post_id ) );
 
 	// Child pages and attachments carry the post's slug in their permalinks.
 	if ( $post_after->post_name !== $post_before->post_name || (int) $post_after->post_parent !== (int) $post_before->post_parent ) {
-		fqj_queue_add_posts( fqj_descendant_post_ids( $post_id ) );
+		rfsd_queue_add_posts( rfsd_descendant_post_ids( $post_id ) );
 	}
 }
-add_action( 'post_updated', 'fqj_on_post_permalink_change', 10, 3 );
+add_action( 'post_updated', 'rfsd_on_post_permalink_change', 10, 3 );
 
 /**
  * IDs of every post below a post in the post_parent tree, revisions excluded.
@@ -440,7 +440,7 @@ add_action( 'post_updated', 'fqj_on_post_permalink_change', 10, 3 );
  * @param int $post_id Post ID.
  * @return int[]
  */
-function fqj_descendant_post_ids( $post_id ) {
+function rfsd_descendant_post_ids( $post_id ) {
 	global $wpdb;
 
 	$found   = array();
@@ -465,12 +465,12 @@ function fqj_descendant_post_ids( $post_id ) {
 /**
  * Purge all cached output when a setting that changes every post's URL, or which page sits at `/`, changes.
  */
-function fqj_purge_on_url_settings_change() {
-	fqj_purge_all_faq_transients();
+function rfsd_purge_on_url_settings_change() {
+	rfsd_purge_all_faq_transients();
 }
-add_action( 'update_option_permalink_structure', 'fqj_purge_on_url_settings_change', 10, 0 );
-add_action( 'update_option_category_base', 'fqj_purge_on_url_settings_change', 10, 0 );
-add_action( 'update_option_tag_base', 'fqj_purge_on_url_settings_change', 10, 0 );
-add_action( 'update_option_home', 'fqj_purge_on_url_settings_change', 10, 0 );
-add_action( 'update_option_show_on_front', 'fqj_purge_on_url_settings_change', 10, 0 );
-add_action( 'update_option_page_on_front', 'fqj_purge_on_url_settings_change', 10, 0 );
+add_action( 'update_option_permalink_structure', 'rfsd_purge_on_url_settings_change', 10, 0 );
+add_action( 'update_option_category_base', 'rfsd_purge_on_url_settings_change', 10, 0 );
+add_action( 'update_option_tag_base', 'rfsd_purge_on_url_settings_change', 10, 0 );
+add_action( 'update_option_home', 'rfsd_purge_on_url_settings_change', 10, 0 );
+add_action( 'update_option_show_on_front', 'rfsd_purge_on_url_settings_change', 10, 0 );
+add_action( 'update_option_page_on_front', 'rfsd_purge_on_url_settings_change', 10, 0 );
