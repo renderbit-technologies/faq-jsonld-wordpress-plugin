@@ -25,7 +25,7 @@ PHPUnit runs against a real MySQL/MariaDB database that the suite **wipes on eve
 
 ## Architecture
 
-`renderbit-faq-structured-data.php` defines constants, requires every file in `includes/`, registers the CPT (renaming FAQs stored under a post type in `RFSD_LEGACY_POST_TYPES` once per site, on `plugins_loaded` priority 5 and on activation, before the schema upgrade and data migration), and handles activation/deactivation (looping over all sites via `rfsd_for_each_site()` on network activation and setting up new sites on `wp_initialize_site`).
+`renderbit-faq-structured-data.php` defines constants, requires every file in `includes/`, registers the CPT, imports a site's data from the old FAQ JSON-LD Manager plugin (`faq-jsonld`, `fqj_` names listed in `rfsd_legacy_storage_names()`) once per site in `rfsd_import_legacy_data()` (on `plugins_loaded` priority 5 and on activation, before the schema upgrade, the data migration and activation's has-FAQs check), and handles activation/deactivation (looping over all sites via `rfsd_for_each_site()` on network activation and setting up new sites on `wp_initialize_site`).
 
 Data flow:
 
@@ -42,7 +42,7 @@ Schema and data versioning (constants in `renderbit-faq-structured-data.php`):
 - `RFSD_DB_VERSION`: bump whenever the `CREATE TABLE` SQL in `rfsd_create_table()` changes. `rfsd_maybe_upgrade_db()` reruns `dbDelta` on `plugins_loaded`. dbDelta needs a strict format (no `IF NOT EXISTS`, two spaces after `PRIMARY KEY`, `KEY` not `INDEX`, no inline comments).
 - `RFSD_DATA_VERSION`: bump to force a one-time reindex of every FAQ plus a cache purge on existing sites. `rfsd_run_data_migration()` processes FAQs in batches through a cron event, keeping its place in a cursor option. Version 3 (`rfsd_migrate_url_associations()`) reads each FAQ's old `post` rows before reindexing and rewrites URL associations that only matched through them, recording each change in the non-autoloaded `rfsd_url_migration_report` option shown on the FAQ list screen until dismissed.
 
-`uninstall.php` removes options, transients, cron events, post meta and both tables on every site. FAQ posts (`rfsd_faq`, plus any left under the legacy `faq_item`) are kept unless the `rfsd_uninstall_delete_faqs` filter returns true.
+`uninstall.php` removes options, transients, cron events, post meta and both tables on every site. `rfsd_faq` posts are kept unless the `rfsd_uninstall_delete_faqs` filter returns true.
 
 Admin JS (`assets/js/rfsd-admin.js`, `rfsd-health.js`) uses jQuery and a bundled Select2 (`assets/vendor/select2`, not a CDN). It talks to `wp_ajax_rfsd_*` handlers protected by the `rfsd_admin_nonce` nonce, and gets its strings through `wp_localize_script`.
 

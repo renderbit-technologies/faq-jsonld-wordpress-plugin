@@ -13,7 +13,7 @@ A WordPress plugin to manage FAQ items as a custom post type (CPT) and inject FA
 
 ## Features
 
-- **Custom Post Type:** Manage FAQ items via the `rfsd_faq` CPT (named `faq_item` before 3.1.1; existing FAQs are renamed on upgrade).
+- **Custom Post Type:** Manage FAQ items via the `rfsd_faq` CPT (the old FAQ JSON-LD Manager plugin used `faq_item`; its FAQs are imported on activation).
 - **Mapping Table:** Fast MySQL table (`rfsd_mappings`) links FAQ items to posts, post types, terms, URLs, or global context.
 - **JSON-LD Output:** Injects FAQ schema on the frontend, with per-post transient caching.
 - **Cache Invalidation:** Background queue (WP-Cron or WP-CLI) for efficient cache purging.

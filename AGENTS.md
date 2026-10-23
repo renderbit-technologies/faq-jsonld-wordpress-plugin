@@ -1,6 +1,6 @@
 # AGENTS.md
 
-WordPress plugin `renderbit-faq-structured-data`: FAQs as a `rfsd_faq` CPT (`RFSD_POST_TYPE`; renamed from `faq_item` on upgrade), schema.org `FAQPage` JSON-LD printed on singular posts/pages. Procedural PHP, every function prefixed `rfsd_`, no build step, no runtime Composer deps.
+WordPress plugin `renderbit-faq-structured-data`: FAQs as a `rfsd_faq` CPT (`RFSD_POST_TYPE`; FAQs from the old `faq-jsonld` plugin are imported on activation), schema.org `FAQPage` JSON-LD printed on singular posts/pages. Procedural PHP, every function prefixed `rfsd_`, no build step, no runtime Composer deps.
 
 **PHP ceiling is 7.2 for shipped code** — `composer.json` pins platform 7.4, so syntax up to 7.4 passes locally while CI's `php -l` matrix (7.2–8.4) fails. Write 7.2-compatible syntax in `renderbit-faq-structured-data.php`, `uninstall.php`, `includes/`.
 

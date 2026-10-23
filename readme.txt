@@ -4,7 +4,7 @@ Tags: faq, schema, json-ld, structured data, seo
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 3.1.1
+Stable tag: 4.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -63,14 +63,19 @@ Yes. Write answers in the editor as usual; blocks and shortcodes are rendered an
 
 Yes. "Purge all" bumps a cache generation number instead of deleting transients one by one, so it works with persistent object caches.
 
+= I used FAQ JSON-LD Manager. How do I switch? =
+
+Install and activate Renderbit FAQ Structured Data while the old plugin is still installed. On activation (and on each site of a network) it moves the FAQ items and their associations over and copies the settings. Then deactivate and delete FAQ JSON-LD Manager. Do not delete the old plugin first: its uninstall removes the FAQ associations.
+
 = What happens when I delete the plugin? =
 
 Its options, transients, scheduled events, post meta and mapping table are removed. FAQ item posts are kept unless you enable the `rfsd_uninstall_delete_faqs` filter.
 
 == Changelog ==
 
-= 3.1.1 =
-* FAQ items now use the prefixed post type `rfsd_faq` instead of `faq_item`, so they cannot collide with another plugin's FAQ post type. Existing FAQs are moved over automatically on upgrade; links or code that use `post_type=faq_item` need updating.
+= 4.0.0 =
+* Renamed from FAQ JSON-LD Manager (`faq-jsonld`) to Renderbit FAQ Structured Data (`renderbit-faq-structured-data`). Install and activate this plugin first: it imports the FAQs, their associations and the settings of FAQ JSON-LD Manager on every site. Then deactivate and delete the old plugin. Deleting the old plugin first removes the FAQ associations.
+* Every name now uses the `rfsd_` prefix. The FAQ post type is `rfsd_faq` (was `faq_item`), the filters are `rfsd_question_text`, `rfsd_answer_text` and `rfsd_uninstall_delete_faqs` (were `fqj_*`), and the WP-CLI command is `wp rfsd` (was `wp fqj`). Update any custom code, bookmarks or scripts that use the old names.
 * The invalidation queue notice only appears on the plugin's own screens (FAQ list and editor, Health, Settings) instead of on every admin page, and can be translated.
 * Updated the bundled Select2 to 4.1.0.
 
@@ -97,8 +102,8 @@ Its options, transients, scheduled events, post meta and mapping table are remov
 
 == Upgrade Notice ==
 
-= 3.1.1 =
-FAQ items move to the prefixed post type `rfsd_faq` automatically. Update any bookmarks or custom code that use `post_type=faq_item`.
+= 4.0.0 =
+Replaces FAQ JSON-LD Manager. Activate this plugin before deleting the old one so your FAQs and settings are imported. Filters, the post type and the WP-CLI command now use the `rfsd` prefix.
 
 = 3.1.0 =
 URL associations now match the URL itself. The upgrade rewrites URLs that only matched the old way and lists every change on the FAQ list screen.
