@@ -3,7 +3,7 @@
  * Uninstall script for FAQ JSON-LD Manager.
  *
  * WARNING: This removes plugin options, scheduled events, transients, post meta and the mapping table
- * permanently, on every site of a multisite network. The faq_item posts are kept unless the
+ * permanently, on every site of a multisite network. FAQ posts are kept unless the
  * `fqj_uninstall_delete_faqs` filter returns true.
  *
  * Plugin functions are not loaded during uninstall, so everything here is self-contained.
@@ -22,7 +22,7 @@ $fqj_uninstall_site = function () {
 	global $wpdb;
 
 	// Options.
-	foreach ( array( 'fqj_settings', 'fqj_db_version', 'fqj_data_version', 'fqj_data_migration_cursor', 'fqj_invalidation_log', 'fqj_last_queue_run', 'fqj_cache_gen', 'fqj_url_migration_report' ) as $option ) {
+	foreach ( array( 'fqj_settings', 'fqj_db_version', 'fqj_data_version', 'fqj_data_migration_cursor', 'fqj_invalidation_log', 'fqj_last_queue_run', 'fqj_cache_gen', 'fqj_url_migration_report', 'fqj_post_type' ) as $option ) {
 		delete_option( $option );
 	}
 
@@ -51,7 +51,7 @@ $fqj_uninstall_site = function () {
 		do {
 			$faq_ids = get_posts(
 				array(
-					'post_type'              => 'faq_item',
+					'post_type'              => array( 'fqj_faq', 'faq_item' ),
 					// 'any' skips statuses excluded from search, such as trash.
 					'post_status'            => array_keys( get_post_stati() ),
 					'posts_per_page'         => 100,

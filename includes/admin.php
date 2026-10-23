@@ -12,7 +12,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // phpcs:disable PSR1.Files.SideEffects
 
 /**
- * Enqueue admin assets for faq_item edit screen
+ * Enqueue admin assets for the FAQ edit screen
  *
  * @param string $hook The current admin page.
  */
@@ -21,7 +21,7 @@ function fqj_admin_assets( $hook ) {
 	if ( ! in_array( $hook, array( 'post.php', 'post-new.php' ), true ) ) {
 		return;
 	}
-	if ( ! $post || 'faq_item' !== $post->post_type ) {
+	if ( ! $post || FQJ_POST_TYPE !== $post->post_type ) {
 		return;
 	}
 
@@ -45,13 +45,13 @@ function fqj_admin_assets( $hook ) {
 			'fqj-select2-css',
 			FQJ_PLUGIN_URL . 'assets/vendor/select2/select2' . $suffix . '.css',
 			array(),
-			'4.0.13'
+			'4.1.0'
 		);
 		wp_enqueue_script(
 			'fqj-select2-js',
 			FQJ_PLUGIN_URL . 'assets/vendor/select2/select2' . $suffix . '.js',
 			array( 'jquery' ),
-			'4.0.13',
+			'4.1.0',
 			true
 		);
 	} else {
@@ -71,7 +71,7 @@ function fqj_admin_assets( $hook ) {
 				'fqj-select2-css',
 				FQJ_PLUGIN_URL . 'assets/vendor/select2/select2' . $suffix . '.css',
 				array(),
-				'4.0.13'
+				'4.1.0'
 			);
 		}
 	}
@@ -112,7 +112,7 @@ function fqj_add_meta_boxes() {
 		'fqj_assoc_rules',
 		__( 'Associations & Output', 'faq-jsonld' ),
 		'fqj_assoc_rules_meta_box_cb',
-		'faq_item',
+		FQJ_POST_TYPE,
 		'normal',
 		'default'
 	);
@@ -221,7 +221,7 @@ function fqj_save_meta_handler( $post_id, $post ) {
 	if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
 		return;
 	}
-	if ( 'faq_item' !== $post->post_type ) {
+	if ( FQJ_POST_TYPE !== $post->post_type ) {
 		return;
 	}
 	if ( ! current_user_can( 'edit_post', $post_id ) ) {
@@ -376,7 +376,7 @@ add_action( 'admin_notices', 'fqj_unmatched_urls_notice' );
  */
 function fqj_url_migration_report_notice() {
 	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
-	if ( ! $screen || 'edit-faq_item' !== $screen->id || ! current_user_can( 'edit_others_posts' ) ) {
+	if ( ! $screen || 'edit-' . FQJ_POST_TYPE !== $screen->id || ! current_user_can( 'edit_others_posts' ) ) {
 		return;
 	}
 	$report = get_option( FQJ_URL_MIGRATION_REPORT_OPTION );
@@ -423,7 +423,7 @@ function fqj_dismiss_url_migration_report() {
  */
 function fqj_admin_post_dismiss_url_migration_report() {
 	fqj_dismiss_url_migration_report();
-	wp_safe_redirect( admin_url( 'edit.php?post_type=faq_item' ) );
+	wp_safe_redirect( admin_url( 'edit.php?post_type=' . FQJ_POST_TYPE ) );
 	exit;
 }
 add_action( 'admin_post_fqj_dismiss_url_migration_report', 'fqj_admin_post_dismiss_url_migration_report' );
@@ -444,7 +444,7 @@ function fqj_ajax_search_posts() {
 
 	$args  = array(
 		's'              => $q,
-		'post_type'      => array_values( array_diff( get_post_types( array( 'public' => true ) ), array( 'attachment', 'faq_item' ) ) ),
+		'post_type'      => array_values( array_diff( get_post_types( array( 'public' => true ) ), array( 'attachment', FQJ_POST_TYPE ) ) ),
 		'posts_per_page' => 20,
 		'post_status'    => 'publish',
 	);

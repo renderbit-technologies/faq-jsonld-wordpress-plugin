@@ -223,7 +223,7 @@ class Test_FQJ_URL_Migration extends FQJ_TestCase {
 		$this->create_legacy_faq( array( home_url( '/?p=' . $post ) ), array( $post ) );
 		$this->migrate();
 
-		set_current_screen( 'edit-faq_item' );
+		set_current_screen( 'edit-fqj_faq' );
 		wp_set_current_user( $author );
 		ob_start();
 		fqj_url_migration_report_notice();

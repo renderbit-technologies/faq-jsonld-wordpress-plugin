@@ -25,7 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 function fqj_register_health_page() {
 	add_submenu_page(
-		'edit.php?post_type=faq_item',
+		'edit.php?post_type=' . FQJ_POST_TYPE,
 		__( 'FAQ JSON-LD Health', 'faq-jsonld' ),
 		__( 'Health', 'faq-jsonld' ),
 		'manage_options',
@@ -42,7 +42,7 @@ add_action( 'admin_menu', 'fqj_register_health_page' );
  */
 function fqj_health_admin_assets( $hook ) {
 	// check page hook: load only on fqj-health page.
-	if ( 'faq_item_page_fqj-health' !== $hook ) {
+	if ( FQJ_POST_TYPE . '_page_fqj-health' !== $hook ) {
 		return;
 	}
 

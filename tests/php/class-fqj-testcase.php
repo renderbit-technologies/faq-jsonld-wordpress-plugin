@@ -41,7 +41,7 @@ abstract class FQJ_TestCase extends WP_UnitTestCase {
 	protected function create_faq( $question = 'What is it?', $answer = 'It is a thing.', $payload = null ) {
 		$faq_id = self::factory()->post->create(
 			array(
-				'post_type'    => 'faq_item',
+				'post_type'    => 'fqj_faq',
 				'post_status'  => 'publish',
 				'post_title'   => $question,
 				'post_content' => $answer,

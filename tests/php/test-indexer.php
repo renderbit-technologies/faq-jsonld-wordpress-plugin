@@ -69,7 +69,7 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 	}
 
 	public function test_data_migration_reindexes_and_purges_once() {
-		$faq = self::factory()->post->create( array( 'post_type' => 'faq_item' ) );
+		$faq = self::factory()->post->create( array( 'post_type' => 'fqj_faq' ) );
 		update_post_meta( $faq, 'fqj_assoc_data_json', wp_json_encode( array( 'posts' => array( 5 ) ) ) );
 		fqj_insert_mappings(
 			$faq,
@@ -115,7 +115,7 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 	public function test_data_migration_reindexes_trashed_faqs() {
 		$faq = self::factory()->post->create(
 			array(
-				'post_type'   => 'faq_item',
+				'post_type'   => 'fqj_faq',
 				'post_status' => 'trash',
 			)
 		);
@@ -139,7 +139,7 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 
 	public function test_data_migration_runs_in_batches() {
 		add_filter( 'fqj_data_migration_batch_size', array( $this, 'tiny_batch' ) );
-		self::factory()->post->create_many( 3, array( 'post_type' => 'faq_item' ) );
+		self::factory()->post->create_many( 3, array( 'post_type' => 'fqj_faq' ) );
 		delete_option( FQJ_DATA_VERSION_OPTION );
 		delete_option( FQJ_DATA_MIGRATION_CURSOR_OPTION );
 		wp_clear_scheduled_hook( 'fqj_data_migration' );
@@ -157,7 +157,7 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 	}
 
 	public function test_data_migration_restarts_cursor_left_by_an_older_migration() {
-		$ids = self::factory()->post->create_many( 3, array( 'post_type' => 'faq_item' ) );
+		$ids = self::factory()->post->create_many( 3, array( 'post_type' => 'fqj_faq' ) );
 		foreach ( $ids as $faq ) {
 			update_post_meta( $faq, 'fqj_assoc_data_json', wp_json_encode( array( 'posts' => array( 5 ) ) ) );
 		}
@@ -175,7 +175,7 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 
 	public function test_data_migration_cursor_records_its_version() {
 		add_filter( 'fqj_data_migration_batch_size', array( $this, 'tiny_batch' ) );
-		$ids = self::factory()->post->create_many( 3, array( 'post_type' => 'faq_item' ) );
+		$ids = self::factory()->post->create_many( 3, array( 'post_type' => 'fqj_faq' ) );
 		sort( $ids );
 		delete_option( FQJ_DATA_VERSION_OPTION );
 		delete_option( FQJ_DATA_MIGRATION_CURSOR_OPTION );

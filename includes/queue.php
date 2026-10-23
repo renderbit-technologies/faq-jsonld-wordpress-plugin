@@ -393,18 +393,26 @@ function fqj_process_invalidation_queue_now( $limit = null ) {
 }
 
 /**
- * Admin notice helper: show queue length on admin screens for admins.
+ * Admin notice on the plugin's own screens (FAQ list and editor, Health, Settings): show the queue length to admins.
  */
 function fqj_admin_queue_notice() {
 	if ( ! current_user_can( 'manage_options' ) ) {
 		return;
 	}
+	$screen    = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+	$own_pages = array( FQJ_POST_TYPE . '_page_fqj-health', FQJ_POST_TYPE . '_page_fqj-settings' );
+	if ( ! $screen || ( FQJ_POST_TYPE !== $screen->post_type && ! in_array( $screen->id, $own_pages, true ) ) ) {
+		return;
+	}
 	$len = fqj_queue_length();
 	if ( $len > 0 ) {
 		printf(
-			'<div class="notice notice-info"><p>FAQ JSON-LD queue: <strong>%d</strong> ' .
-			'items pending invalidation. The background worker (WP-Cron) will process them in batches.</p></div>',
-			intval( $len )
+			'<div class="notice notice-info"><p>%s</p></div>',
+			sprintf(
+				/* translators: %s: number of queued items. */
+				esc_html( _n( 'FAQ JSON-LD queue: %s item pending invalidation. The background worker (WP-Cron) will process it in batches.', 'FAQ JSON-LD queue: %s items pending invalidation. The background worker (WP-Cron) will process them in batches.', $len, 'faq-jsonld' ) ),
+				'<strong>' . intval( $len ) . '</strong>'
+			)
 		);
 	}
 }

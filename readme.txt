@@ -4,7 +4,7 @@ Tags: faq, schema, json-ld, structured data, seo
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 3.1.0
+Stable tag: 3.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -38,7 +38,7 @@ Built for large sites:
 
 * `fqj_question_text( $text, $faq_post )` filters the plain-text question.
 * `fqj_answer_text( $text, $faq_post )` filters the plain-text answer.
-* `fqj_uninstall_delete_faqs` (default `false`): return `true` to delete `faq_item` posts when the plugin is deleted.
+* `fqj_uninstall_delete_faqs` (default `false`): return `true` to delete FAQ posts when the plugin is deleted.
 
 Development happens on [GitHub](https://github.com/renderbit-technologies/faq-jsonld-wordpress-plugin).
 
@@ -69,6 +69,11 @@ Its options, transients, scheduled events, post meta and mapping table are remov
 
 == Changelog ==
 
+= 3.1.1 =
+* FAQ items now use the prefixed post type `fqj_faq` instead of `faq_item`, so they cannot collide with another plugin's FAQ post type. Existing FAQs are moved over automatically on upgrade; links or code that use `post_type=faq_item` need updating.
+* The invalidation queue notice only appears on the plugin's own screens (FAQ list and editor, Health, Settings) instead of on every admin page, and can be translated.
+* Updated the bundled Select2 to 4.1.0.
+
 = 3.1.0 =
 * URL associations now mean the URL itself: a FAQ shows on whichever post has that permalink now. Before, saving a URL also tied the FAQ to the post found there, so it followed that post when it was renamed and appeared on shortlinks and the front page's slug URL.
 * URLs on your own site are stored relative to the site root, so moving between `http` and `https`, adding or dropping `www.`, or changing domain keeps them working.
@@ -91,6 +96,9 @@ Its options, transients, scheduled events, post meta and mapping table are remov
 * Uninstall, deactivation and multisite handling are complete.
 
 == Upgrade Notice ==
+
+= 3.1.1 =
+FAQ items move to the prefixed post type `fqj_faq` automatically. Update any bookmarks or custom code that use `post_type=faq_item`.
 
 = 3.1.0 =
 URL associations now match the URL itself. The upgrade rewrites URLs that only matched the old way and lists every change on the FAQ list screen.

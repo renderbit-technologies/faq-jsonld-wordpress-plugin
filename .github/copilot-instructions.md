@@ -6,7 +6,7 @@ This plugin manages FAQ items as a custom post type (CPT) and injects FAQ JSON-L
 
 ## Architecture & Key Components
 
-- **Custom Post Type:** `faq_item` is registered for FAQ entries.
+- **Custom Post Type:** `fqj_faq` (formerly `faq_item`) is registered for FAQ entries.
 - **Mapping Table:** MySQL table (`fqj_mappings`) links FAQ items to posts, post types, terms, URLs, or global context. See `includes/indexer.php`.
 - **JSON-LD Output:** Injected on the frontend using `includes/frontend.php`, with per-post transient caching for performance.
 - **Cache Invalidation:** Uses a background queue (`includes/queue.php`) processed by WP-Cron or WP-CLI. Queue state and logs are visible in the Health admin page.

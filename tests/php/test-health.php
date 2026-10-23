@@ -37,7 +37,7 @@ class Test_FQJ_Health extends FQJ_TestCase {
 	public function test_submenu_is_registered() {
 		global $submenu;
 		fqj_register_health_page();
-		$slugs = wp_list_pluck( $submenu['edit.php?post_type=faq_item'], 2 );
+		$slugs = wp_list_pluck( $submenu['edit.php?post_type=fqj_faq'], 2 );
 		$this->assertContains( 'fqj-health', $slugs );
 	}
 
@@ -99,7 +99,7 @@ class Test_FQJ_Health extends FQJ_TestCase {
 		fqj_health_admin_assets( 'edit.php' );
 		$this->assertFalse( wp_script_is( 'fqj-health-js', 'enqueued' ) );
 
-		fqj_health_admin_assets( 'faq_item_page_fqj-health' );
+		fqj_health_admin_assets( 'fqj_faq_page_fqj-health' );
 		$this->assertTrue( wp_script_is( 'fqj-health-js', 'enqueued' ) );
 		$this->assertStringContainsString( 'var fqjHealth', wp_scripts()->get_data( 'fqj-health-js', 'data' ) );
 	}

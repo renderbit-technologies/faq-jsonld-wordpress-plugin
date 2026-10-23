@@ -54,10 +54,10 @@ class Test_FQJ_Admin extends FQJ_TestCase {
 		return json_decode( get_post_meta( $faq_id, 'fqj_assoc_data_json', true ), true );
 	}
 
-	public function test_meta_box_is_registered_for_faq_items() {
+	public function test_meta_box_is_registered_for_faqs() {
 		global $wp_meta_boxes;
 		fqj_add_meta_boxes();
-		$this->assertArrayHasKey( 'fqj_assoc_rules', $wp_meta_boxes['faq_item']['normal']['default'] );
+		$this->assertArrayHasKey( 'fqj_assoc_rules', $wp_meta_boxes['fqj_faq']['normal']['default'] );
 	}
 
 	public function test_save_urls() {

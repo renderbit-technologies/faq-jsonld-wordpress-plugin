@@ -13,7 +13,7 @@ A WordPress plugin to manage FAQ items as a custom post type (CPT) and inject FA
 
 ## Features
 
-- **Custom Post Type:** Manage FAQ items via the `faq_item` CPT.
+- **Custom Post Type:** Manage FAQ items via the `fqj_faq` CPT (named `faq_item` before 3.1.1; existing FAQs are renamed on upgrade).
 - **Mapping Table:** Fast MySQL table (`fqj_mappings`) links FAQ items to posts, post types, terms, URLs, or global context.
 - **JSON-LD Output:** Injects FAQ schema on the frontend, with per-post transient caching.
 - **Cache Invalidation:** Background queue (WP-Cron or WP-CLI) for efficient cache purging.
@@ -61,7 +61,7 @@ A WordPress plugin to manage FAQ items as a custom post type (CPT) and inject FA
   - `assets/js/fqj-admin.js`, `assets/js/fqj-health.js`: Admin JS (Select2 is bundled in `assets/vendor/select2`)
 - **Mapping Types:** All associations are stored in a single table for fast lookups.
 - **Transient Keys:** `fqj_faq_json_{generation}_{post_id}` (build with `fqj_cache_key( $post_id )`). "Purge all" bumps the `fqj_cache_gen` option, which works with persistent object caches too.
-- **Uninstall:** Deleting the plugin removes its options, transients, cron events, post meta and mapping table (on every site of a multisite network). `faq_item` posts are kept by default; to delete them as well, add `add_filter( 'fqj_uninstall_delete_faqs', '__return_true' );` (e.g. in a mu-plugin) before deleting the plugin.
+- **Uninstall:** Deleting the plugin removes its options, transients, cron events, post meta and mapping table (on every site of a multisite network). FAQ posts are kept by default; to delete them as well, add `add_filter( 'fqj_uninstall_delete_faqs', '__return_true' );` (e.g. in a mu-plugin) before deleting the plugin.
 - **Admin JS:** Uses Select2 for post selectors, AJAX for search (`fqj_search_posts` action; all public post types except attachments and FAQs). Switching the association type keeps each type's in-progress selection until you save; only the selected type is stored.
 - **Background Processing:** The invalidation queue lives in a database table and is processed every 5 minutes by WP-Cron (up to the batch size per run), or on demand from the Health page or WP-CLI.
 - **Asset versions:** The plugin's own JS is versioned with `FQJ_VERSION`; keep it in sync with the `Version` header when releasing.

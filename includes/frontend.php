@@ -153,7 +153,7 @@ function fqj_render_faq_jsonld( $post_id ) {
 
 	$faqs = get_posts(
 		array(
-			'post_type'      => 'faq_item',
+			'post_type'      => FQJ_POST_TYPE,
 			'post_status'    => 'publish',
 			'posts_per_page' => -1,
 			'post__in'       => $faq_ids,

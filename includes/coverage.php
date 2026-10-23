@@ -393,7 +393,7 @@ function fqj_posts_covered_by_mapping( $mapping, $after_id = 0, $limit = 100 ) {
  */
 function fqj_on_object_terms_set( $object_id, $terms, $tt_ids, $taxonomy, $append, $old_tt_ids ) {
 	$type = get_post_type( $object_id );
-	if ( ! $type || 'faq_item' === $type || wp_is_post_revision( $object_id ) ) {
+	if ( ! $type || FQJ_POST_TYPE === $type || wp_is_post_revision( $object_id ) ) {
 		return;
 	}
 	if ( ! $append ) {
@@ -417,7 +417,7 @@ add_action( 'set_object_terms', 'fqj_on_object_terms_set', 10, 6 );
  * @param WP_Post $post_before Post before the update.
  */
 function fqj_on_post_permalink_change( $post_id, $post_after, $post_before ) {
-	if ( 'faq_item' === $post_after->post_type || wp_is_post_revision( $post_id ) ) {
+	if ( FQJ_POST_TYPE === $post_after->post_type || wp_is_post_revision( $post_id ) ) {
 		return;
 	}
 	if ( $post_after->post_name === $post_before->post_name

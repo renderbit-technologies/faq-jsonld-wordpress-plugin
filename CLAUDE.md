@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-WordPress plugin (slug `faq-jsonld`, published on WordPress.org) that manages FAQs as a `faq_item` custom post type and prints schema.org `FAQPage` JSON-LD in `wp_head` on the singular posts/pages each FAQ is mapped to. Procedural PHP, every function prefixed `fqj_`; no build step and no runtime Composer dependencies. Supports WordPress 6.5+ and PHP 7.2+, so don't use syntax newer than PHP 7.2 in shipped code.
+WordPress plugin (slug `faq-jsonld`, published on WordPress.org) that manages FAQs as a `fqj_faq` custom post type (`FQJ_POST_TYPE`) and prints schema.org `FAQPage` JSON-LD in `wp_head` on the singular posts/pages each FAQ is mapped to. Procedural PHP, every function prefixed `fqj_`; no build step and no runtime Composer dependencies. Supports WordPress 6.5+ and PHP 7.2+, so don't use syntax newer than PHP 7.2 in shipped code.
 
 ## Commands
 
@@ -25,7 +25,7 @@ PHPUnit runs against a real MySQL/MariaDB database that the suite **wipes on eve
 
 ## Architecture
 
-`faq-jsonld.php` defines constants, requires every file in `includes/`, registers the CPT, and handles activation/deactivation (looping over all sites via `fqj_for_each_site()` on network activation and setting up new sites on `wp_initialize_site`).
+`faq-jsonld.php` defines constants, requires every file in `includes/`, registers the CPT (renaming FAQs stored under a post type in `FQJ_LEGACY_POST_TYPES` once per site, on `plugins_loaded` priority 5 and on activation, before the schema upgrade and data migration), and handles activation/deactivation (looping over all sites via `fqj_for_each_site()` on network activation and setting up new sites on `wp_initialize_site`).
 
 Data flow:
 
@@ -42,7 +42,7 @@ Schema and data versioning (constants in `faq-jsonld.php`):
 - `FQJ_DB_VERSION`: bump whenever the `CREATE TABLE` SQL in `fqj_create_table()` changes. `fqj_maybe_upgrade_db()` reruns `dbDelta` on `plugins_loaded`. dbDelta needs a strict format (no `IF NOT EXISTS`, two spaces after `PRIMARY KEY`, `KEY` not `INDEX`, no inline comments).
 - `FQJ_DATA_VERSION`: bump to force a one-time reindex of every FAQ plus a cache purge on existing sites. `fqj_run_data_migration()` processes FAQs in batches through a cron event, keeping its place in a cursor option. Version 3 (`fqj_migrate_url_associations()`) reads each FAQ's old `post` rows before reindexing and rewrites URL associations that only matched through them, recording each change in the non-autoloaded `fqj_url_migration_report` option shown on the FAQ list screen until dismissed.
 
-`uninstall.php` removes options, transients, cron events, post meta and both tables on every site. `faq_item` posts are kept unless the `fqj_uninstall_delete_faqs` filter returns true.
+`uninstall.php` removes options, transients, cron events, post meta and both tables on every site. FAQ posts (`fqj_faq`, plus any left under the legacy `faq_item`) are kept unless the `fqj_uninstall_delete_faqs` filter returns true.
 
 Admin JS (`assets/js/fqj-admin.js`, `fqj-health.js`) uses jQuery and a bundled Select2 (`assets/vendor/select2`, not a CDN). It talks to `wp_ajax_fqj_*` handlers protected by the `fqj_admin_nonce` nonce, and gets its strings through `wp_localize_script`.
 

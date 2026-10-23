@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 function fqj_register_settings_page() {
 	add_submenu_page(
-		'edit.php?post_type=faq_item',
+		'edit.php?post_type=' . FQJ_POST_TYPE,
 		__( 'FAQ JSON-LD Settings', 'faq-jsonld' ),
 		__( 'Settings', 'faq-jsonld' ),
 		'manage_options',

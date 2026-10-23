@@ -64,6 +64,7 @@ class Test_FQJ_Uninstall extends FQJ_TestCase {
 		global $wpdb;
 
 		update_option( FQJ_OPTION_KEY, array( 'cache_ttl' => 60 ) );
+		update_option( FQJ_POST_TYPE_OPTION, FQJ_POST_TYPE );
 		fqj_update_option_no_autoload( FQJ_URL_MIGRATION_REPORT_OPTION, array( array( 'faq_id' => 1, 'old' => '', 'new' => '/x' ) ) );
 		set_transient( 'fqj_unmatched_urls_1_2', array( 'x' ), 600 );
 		$key = fqj_cache_key( 1 );
@@ -77,6 +78,7 @@ class Test_FQJ_Uninstall extends FQJ_TestCase {
 		$this->assertFalse( get_option( '_transient_timeout_' . $key ) );
 		$this->assertFalse( get_option( 'fqj_cache_gen' ) );
 		$this->assertFalse( get_option( FQJ_URL_MIGRATION_REPORT_OPTION ) );
+		$this->assertFalse( get_option( FQJ_POST_TYPE_OPTION ) );
 		$this->assertFalse( get_transient( 'fqj_unmatched_urls_1_2' ) );
 		$this->assertSame( 'y', get_transient( 'keep_me' ) );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
@@ -93,7 +95,7 @@ class Test_FQJ_Uninstall extends FQJ_TestCase {
 		set_transient( 'fqj_rejected_urls_1_2', array( 'bad' ), 600 );
 		wp_schedule_event( time() + 60, 'hourly', 'fqj_process_invalidation_queue' );
 		wp_schedule_single_event( time() + 60, 'fqj_data_migration' );
-		$faq              = self::factory()->post->create( array( 'post_type' => 'faq_item' ) );
+		$faq              = self::factory()->post->create( array( 'post_type' => 'fqj_faq' ) );
 		$this->post_ids[] = $faq;
 		update_post_meta( $faq, 'fqj_assoc_type', 'urls' );
 		update_post_meta( $faq, 'fqj_assoc_data_json', '{}' );
@@ -115,19 +117,20 @@ class Test_FQJ_Uninstall extends FQJ_TestCase {
 	}
 
 	public function test_uninstall_deletes_faqs_when_filter_allows() {
-		$faq   = self::factory()->post->create( array( 'post_type' => 'faq_item' ) );
+		$faq   = self::factory()->post->create( array( 'post_type' => 'fqj_faq' ) );
 		$draft = self::factory()->post->create(
 			array(
-				'post_type'   => 'faq_item',
+				'post_type'   => 'fqj_faq',
 				'post_status' => 'draft',
 			)
 		);
 		$trashed = self::factory()->post->create(
 			array(
-				'post_type'   => 'faq_item',
+				'post_type'   => 'fqj_faq',
 				'post_status' => 'trash',
 			)
 		);
+		$legacy  = self::factory()->post->create( array( 'post_type' => 'faq_item' ) );
 		$post    = self::factory()->post->create();
 		$this->post_ids[] = $post;
 		update_post_meta( $faq, 'fqj_assoc_type', 'urls' );
@@ -139,6 +142,7 @@ class Test_FQJ_Uninstall extends FQJ_TestCase {
 		$this->assertNull( get_post( $faq ) );
 		$this->assertNull( get_post( $draft ) );
 		$this->assertNull( get_post( $trashed ) );
+		$this->assertNull( get_post( $legacy ), 'FAQs never migrated off the legacy post type are deleted too.' );
 		$this->assertNotNull( get_post( $post ) );
 	}
 }

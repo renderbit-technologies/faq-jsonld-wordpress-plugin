@@ -433,7 +433,7 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 		$json = $this->extract_json_ld( $this->render_head_for( $post ) );
 		remove_filter( 'fqj_question_text', $q, 10 );
 		remove_filter( 'fqj_answer_text', $a );
-		$this->assertSame( 'Q [faq_item]', $json['mainEntity'][0]['name'] );
+		$this->assertSame( 'Q [fqj_faq]', $json['mainEntity'][0]['name'] );
 		$this->assertSame( 'ANSWER', $json['mainEntity'][0]['acceptedAnswer']['text'] );
 	}
 }

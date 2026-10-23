@@ -109,7 +109,7 @@ function fqj_get_faq_ids_after( $after_id, $limit ) {
 	$ids = $wpdb->get_col(
 		$wpdb->prepare(
 			"SELECT ID FROM {$wpdb->posts} WHERE post_type = %s AND post_status <> 'auto-draft' AND ID > %d ORDER BY ID ASC LIMIT %d",
-			'faq_item',
+			FQJ_POST_TYPE,
 			(int) $after_id,
 			(int) $limit
 		)
@@ -473,7 +473,7 @@ function fqj_invalidate_faq_mappings( $faq_id ) {
  * @param WP_Post $post       Post object.
  */
 function fqj_on_faq_transition_status( $new_status, $old_status, $post ) {
-	if ( 'faq_item' !== $post->post_type || $new_status === $old_status ) {
+	if ( FQJ_POST_TYPE !== $post->post_type || $new_status === $old_status ) {
 		return;
 	}
 	fqj_invalidate_faq_mappings( $post->ID );
@@ -488,7 +488,7 @@ add_action( 'transition_post_status', 'fqj_on_faq_transition_status', 10, 3 );
  * @param WP_Post $post_before Post before the update.
  */
 function fqj_on_faq_updated( $post_id, $post_after, $post_before ) {
-	if ( 'faq_item' !== $post_after->post_type ) {
+	if ( FQJ_POST_TYPE !== $post_after->post_type ) {
 		return;
 	}
 	if ( $post_after->post_title === $post_before->post_title && $post_after->post_content === $post_before->post_content ) {
@@ -510,7 +510,7 @@ add_action( 'post_updated', 'fqj_on_faq_updated', 10, 3 );
  */
 function fqj_on_faq_before_delete( $post_id, $post = null ) {
 	$post = $post ? $post : get_post( $post_id );
-	if ( ! $post || 'faq_item' !== $post->post_type ) {
+	if ( ! $post || FQJ_POST_TYPE !== $post->post_type ) {
 		return;
 	}
 	fqj_invalidate_faq_mappings( $post_id );

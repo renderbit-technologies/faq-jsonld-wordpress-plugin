@@ -18,17 +18,17 @@ class Test_FQJ_Plugin extends FQJ_TestCase {
 		$this->assertFileExists( FQJ_PLUGIN_DIR . 'faq-jsonld.php' );
 	}
 
-	public function test_faq_item_post_type_is_registered() {
-		$this->assertTrue( post_type_exists( 'faq_item' ) );
+	public function test_faq_post_type_is_registered() {
+		$this->assertTrue( post_type_exists( 'fqj_faq' ) );
 
-		$pt = get_post_type_object( 'faq_item' );
+		$pt = get_post_type_object( 'fqj_faq' );
 		$this->assertFalse( $pt->public );
 		$this->assertTrue( $pt->show_ui );
 		$this->assertFalse( $pt->hierarchical );
 		$this->assertFalse( $pt->has_archive );
 		$this->assertSame( 'FAQ Items', $pt->labels->name );
-		$this->assertTrue( post_type_supports( 'faq_item', 'title' ) );
-		$this->assertTrue( post_type_supports( 'faq_item', 'editor' ) );
+		$this->assertTrue( post_type_supports( 'fqj_faq', 'title' ) );
+		$this->assertTrue( post_type_supports( 'fqj_faq', 'editor' ) );
 	}
 
 	public function test_activation_creates_table() {

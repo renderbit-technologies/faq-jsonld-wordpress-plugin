@@ -3,7 +3,7 @@
  * Plugin Name: FAQ JSON-LD Manager
  * Plugin URI:  https://github.com/renderbit-technologies/faq-jsonld-wordpress-plugin
  * Description: Manage FAQ items as a custom post type and output FAQPage JSON-LD on the posts and pages they apply to.
- * Version:     3.1.0
+ * Version:     3.1.1
  * Requires at least: 6.5
  * Requires PHP: 7.2
  * Author:      Renderbit Technologies
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // phpcs:disable PSR1.Files.SideEffects
 
 // Keep in sync with the Version header above; used to version the plugin's own assets.
-define( 'FQJ_VERSION', '3.1.0' );
+define( 'FQJ_VERSION', '3.1.1' );
 // Upper bound for the invalidation batch size setting.
 define( 'FQJ_MAX_BATCH_SIZE', 5000 );
 define( 'FQJ_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
@@ -36,6 +36,11 @@ define( 'FQJ_DATA_VERSION_OPTION', 'fqj_data_version' );
 define( 'FQJ_DATA_MIGRATION_CURSOR_OPTION', 'fqj_data_migration_cursor' );
 // URL associations rewritten by data migration 3, shown on the FAQ list screen until dismissed.
 define( 'FQJ_URL_MIGRATION_REPORT_OPTION', 'fqj_url_migration_report' );
+
+// Post type of FAQ items. Older post type names in FQJ_LEGACY_POST_TYPES are renamed to it on existing sites.
+define( 'FQJ_POST_TYPE', 'fqj_faq' );
+define( 'FQJ_LEGACY_POST_TYPES', array( 'faq_item' ) );
+define( 'FQJ_POST_TYPE_OPTION', 'fqj_post_type' );
 
 /**
  * Autoload includes
@@ -76,9 +81,37 @@ function fqj_register_cpt_faq_item() {
 		'menu_icon'       => 'dashicons-editor-help',
 		'has_archive'     => false,
 	);
-	register_post_type( 'faq_item', $args );
+	register_post_type( FQJ_POST_TYPE, $args );
 }
 add_action( 'init', 'fqj_register_cpt_faq_item' );
+
+/**
+ * Rename FAQ items stored under a legacy post type to FQJ_POST_TYPE, once per site.
+ *
+ * Runs before the schema upgrade and the data migration, which only look at FQJ_POST_TYPE.
+ */
+function fqj_migrate_legacy_post_types() {
+	global $wpdb;
+
+	if ( FQJ_POST_TYPE === get_option( FQJ_POST_TYPE_OPTION ) ) {
+		return;
+	}
+
+	foreach ( FQJ_LEGACY_POST_TYPES as $legacy ) {
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$ids = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_type = %s", $legacy ) );
+		if ( $ids ) {
+			$wpdb->update( $wpdb->posts, array( 'post_type' => FQJ_POST_TYPE ), array( 'post_type' => $legacy ) );
+		}
+		// phpcs:enable
+		foreach ( $ids as $id ) {
+			clean_post_cache( (int) $id );
+		}
+	}
+
+	update_option( FQJ_POST_TYPE_OPTION, FQJ_POST_TYPE );
+}
+add_action( 'plugins_loaded', 'fqj_migrate_legacy_post_types', 5 );
 
 /**
  * Run a callback for every site of the network, or once when the install is single-site.
@@ -108,6 +141,8 @@ function fqj_for_each_site( $callback ) {
  * Activate the plugin for the current site: create DB table, defaults, schedule cron.
  */
 function fqj_activate_site() {
+	fqj_migrate_legacy_post_types();
+
 	// A site with no FAQs yet has nothing to migrate.
 	if ( false === get_option( FQJ_DATA_VERSION_OPTION ) && ! fqj_has_faq_items() ) {
 		// Cached output can outlive deleted FAQs on a reactivated site.

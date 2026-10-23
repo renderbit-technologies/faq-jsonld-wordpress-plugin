@@ -94,7 +94,7 @@ class Test_FQJ_Ajax extends WP_Ajax_UnitTestCase {
 		register_post_type( 'fqj_secret', array( 'public' => false ) );
 		$book   = self::factory()->post->create( array( 'post_title' => 'Zebra book', 'post_type' => 'fqj_book' ) );
 		self::factory()->post->create( array( 'post_title' => 'Zebra secret', 'post_type' => 'fqj_secret' ) );
-		self::factory()->post->create( array( 'post_title' => 'Zebra faq', 'post_type' => 'faq_item' ) );
+		self::factory()->post->create( array( 'post_title' => 'Zebra faq', 'post_type' => 'fqj_faq' ) );
 		$attach = self::factory()->post->create( array( 'post_title' => 'Zebra file', 'post_type' => 'attachment', 'post_status' => 'inherit' ) );
 
 		$this->nonce( 'fqj_admin_nonce' );
@@ -147,7 +147,7 @@ class Test_FQJ_Ajax extends WP_Ajax_UnitTestCase {
 
 		$this->assertContains( 'post', $names );
 		$this->assertContains( 'page', $names );
-		$this->assertNotContains( 'faq_item', $names, 'FAQ items are not public.' );
+		$this->assertNotContains( 'fqj_faq', $names, 'FAQ items are not public.' );
 
 		$by_name = array_column( $results, 'label', 'name' );
 		$this->assertSame( 'Page', $by_name['page'] );

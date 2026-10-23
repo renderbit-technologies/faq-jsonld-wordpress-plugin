@@ -45,7 +45,7 @@ class Test_FQJ_Settings extends FQJ_TestCase {
 	public function test_submenu_is_registered() {
 		global $submenu;
 		fqj_register_settings_page();
-		$slugs = wp_list_pluck( $submenu['edit.php?post_type=faq_item'], 2 );
+		$slugs = wp_list_pluck( $submenu['edit.php?post_type=fqj_faq'], 2 );
 		$this->assertContains( 'fqj-settings', $slugs );
 	}
 

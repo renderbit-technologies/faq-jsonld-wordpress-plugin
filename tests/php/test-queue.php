@@ -285,6 +285,7 @@ class Test_FQJ_Queue extends FQJ_TestCase {
 
 	public function test_admin_notice_shows_for_admins_with_pending_items() {
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		set_current_screen( 'edit-' . FQJ_POST_TYPE );
 
 		ob_start();
 		fqj_admin_queue_notice();
@@ -305,5 +306,42 @@ class Test_FQJ_Queue extends FQJ_TestCase {
 		ob_start();
 		fqj_admin_queue_notice();
 		$this->assertSame( '', ob_get_clean() );
+	}
+
+	/**
+	 * Screens the queue notice appears on.
+	 *
+	 * @dataProvider notice_screen_provider
+	 *
+	 * @param string $screen   Screen ID.
+	 * @param bool   $expected Whether the notice is shown.
+	 */
+	public function test_admin_notice_only_on_plugin_screens( $screen, $expected ) {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		fqj_queue_add_posts( array( 1 ) );
+		set_current_screen( $screen );
+
+		ob_start();
+		fqj_admin_queue_notice();
+		$out = ob_get_clean();
+		set_current_screen( 'front' );
+
+		if ( $expected ) {
+			$this->assertStringContainsString( '<strong>1</strong> item pending', $out );
+		} else {
+			$this->assertSame( '', $out );
+		}
+	}
+
+	public function notice_screen_provider() {
+		return array(
+			'FAQ list'      => array( 'edit-fqj_faq', true ),
+			'FAQ editor'    => array( 'fqj_faq', true ),
+			'Health page'   => array( 'fqj_faq_page_fqj-health', true ),
+			'Settings page' => array( 'fqj_faq_page_fqj-settings', true ),
+			'dashboard'     => array( 'dashboard', false ),
+			'posts list'    => array( 'edit-post', false ),
+			'plugins'       => array( 'plugins', false ),
+		);
 	}
 }

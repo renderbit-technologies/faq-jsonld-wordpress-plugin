@@ -99,6 +99,26 @@ class Test_FQJ_Multisite extends FQJ_Multisite_TestCase {
 		$this->assertSame( 12 * HOUR_IN_SECONDS, get_option( FQJ_OPTION_KEY )['cache_ttl'] );
 	}
 
+	public function test_network_activation_renames_legacy_faqs_on_every_site() {
+		$site_id = self::factory()->blog->create();
+		$faqs    = array();
+		foreach ( array( get_main_site_id(), $site_id ) as $id ) {
+			switch_to_blog( $id );
+			$faqs[ $id ] = self::factory()->post->create( array( 'post_type' => 'faq_item' ) );
+			delete_option( FQJ_POST_TYPE_OPTION );
+			restore_current_blog();
+		}
+
+		fqj_activate( true );
+
+		foreach ( $faqs as $id => $faq ) {
+			switch_to_blog( $id );
+			$type = get_post( $faq )->post_type;
+			restore_current_blog();
+			$this->assertSame( FQJ_POST_TYPE, $type, "site {$id}" );
+		}
+	}
+
 	public function test_new_site_is_set_up_when_network_active() {
 		$this->network_activate_plugin();
 
