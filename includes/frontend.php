@@ -73,7 +73,7 @@ function fqj_answer_text( $faq ) {
 }
 
 /**
- * Build and print JSON-LD for current post (uses mapping table to fetch relevant FAQ IDs)
+ * Build and print JSON-LD for current post (FAQ IDs come from the coverage module)
  */
 function fqj_maybe_print_faq_jsonld() {
 	if ( is_admin() ) {
@@ -87,6 +87,19 @@ function fqj_maybe_print_faq_jsonld() {
 
 	$current_id = (int) get_queried_object_id();
 	if ( $current_id <= 0 ) {
+		return;
+	}
+
+	// Only coverable posts get cached output, so invalidation can always reach it. Private posts and
+	// previews render fresh every time.
+	if ( ! fqj_post_is_coverable( $current_id ) || is_preview() ) {
+		$output = fqj_render_faq_jsonld( $current_id );
+		echo "\n<!-- FAQ JSON-LD (uncached" . ( '' === $output ? ', no output' : '' ) . ") -->\n";
+		if ( '' !== $output ) {
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			echo $output . "\n";
+		}
+
 		return;
 	}
 
@@ -109,81 +122,8 @@ function fqj_maybe_print_faq_jsonld() {
 		return;
 	}
 
-	// Determine candidate mapping values for lookup.
-	$candidate_values = array();
-
-	// Direct post id mapping.
-	$candidate_values[] = array(
-		'type'  => 'post',
-		'value' => (string) $current_id,
-	);
-
-	// Current post type mapping.
-	$pt = get_post_type( $current_id );
-	if ( $pt ) {
-		$candidate_values[] = array(
-			'type'  => 'post_type',
-			'value' => $pt,
-		);
-	}
-
-	// Terms across every taxonomy registered for this post type (defaults to post_tag only otherwise).
-	$taxonomies = $pt ? get_object_taxonomies( $pt ) : array();
-	$term_ids   = $taxonomies ? wp_get_object_terms( $current_id, $taxonomies, array( 'fields' => 'ids' ) ) : array();
-	if ( ! is_wp_error( $term_ids ) && ! empty( $term_ids ) ) {
-		foreach ( $term_ids as $tid ) {
-			$candidate_values[] = array(
-				'type'  => 'term',
-				'value' => (string) $tid,
-			);
-		}
-	}
-
-	// URL mapping - try canonical/permalink, normalized the same way as the indexer.
-	$permalink = get_permalink( $current_id );
-	if ( $permalink ) {
-		$url = fqj_normalize_url( $permalink );
-
-		$candidate_values[] = array(
-			'type'  => 'url',
-			'value' => $url,
-		);
-		// Rows indexed before URL normalization may still carry a trailing slash.
-		$candidate_values[] = array(
-			'type'  => 'url',
-			'value' => $url . '/',
-		);
-	}
-
-	// Always include global mapping.
-	$candidate_values[] = array(
-		'type'  => 'global',
-		'value' => '1',
-	);
-
-	// Query mapping table for matching faq_ids.
-	global $wpdb;
-	$table = fqj_table_name();
-
-	// Build one WHERE clause per candidate.
-	// Use exact match for all types to prevent partial matches (e.g. post ID 1 matching 10, 11, etc.)
-	// Since we store scalar values directly (or serialized which resolves to string), = is safer.
-	// For 'url', if we wanted partial matches we'd need a different logic, but here we expect exact path match.
-	$params = array( $table );
-	foreach ( $candidate_values as $c ) {
-		$params[] = $c['type'];
-		$params[] = (string) $c['value'];
-	}
-
-	if ( empty( $candidate_values ) ) {
-		return;
-	}
-
-	$where_sql = implode( ' OR ', array_fill( 0, count( $candidate_values ), '(mapping_type = %s AND mapping_value = %s)' ) );
-
-	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare -- placeholders live in $where_sql.
-	$faq_ids = $wpdb->get_col( $wpdb->prepare( "SELECT DISTINCT faq_id FROM %i WHERE {$where_sql}", $params ) );
-	if ( empty( $faq_ids ) ) {
+	$script = fqj_render_faq_jsonld( $current_id );
+	if ( '' === $script ) {
 		// cache negative result to avoid repeated queries.
 		set_transient( $transient_key, '__FQJ_EMPTY__', $cache_ttl );
 		echo "\n<!-- FAQ JSON-LD (generated, no output) -->\n";
@@ -191,21 +131,35 @@ function fqj_maybe_print_faq_jsonld() {
 		return;
 	}
 
-	// Now fetch the FAQ posts.
-	$args = array(
-		'post_type'      => 'faq_item',
-		'post_status'    => 'publish',
-		'posts_per_page' => -1,
-		'post__in'       => $faq_ids,
-		'orderby'        => 'post__in',
-	);
-	$faqs = get_posts( $args );
-	if ( ! $faqs ) {
-		set_transient( $transient_key, '__FQJ_EMPTY__', $cache_ttl );
-		echo "\n<!-- FAQ JSON-LD (generated, no output) -->\n";
+	echo "\n<!-- FAQ JSON-LD injected by FAQ JSON-LD Manager plugin (generated) -->\n";
+	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	echo $script . "\n";
 
-		return;
+	set_transient( $transient_key, $script, $cache_ttl );
+}
+add_action( 'wp_head', 'fqj_maybe_print_faq_jsonld', 1 );
+
+/**
+ * Build the JSON-LD script element for a post from its published FAQs.
+ *
+ * @param int $post_id Post ID.
+ * @return string The script element, or '' when no FAQ applies.
+ */
+function fqj_render_faq_jsonld( $post_id ) {
+	$faq_ids = fqj_faq_ids_for_post( $post_id );
+	if ( empty( $faq_ids ) ) {
+		return '';
 	}
+
+	$faqs = get_posts(
+		array(
+			'post_type'      => 'faq_item',
+			'post_status'    => 'publish',
+			'posts_per_page' => -1,
+			'post__in'       => $faq_ids,
+			'orderby'        => 'post__in',
+		)
+	);
 
 	$main_entities = array();
 	foreach ( $faqs as $f ) {
@@ -226,10 +180,7 @@ function fqj_maybe_print_faq_jsonld() {
 	}
 
 	if ( empty( $main_entities ) ) {
-		set_transient( $transient_key, '__FQJ_EMPTY__', $cache_ttl );
-		echo "\n<!-- FAQ JSON-LD (generated, no output) -->\n";
-
-		return;
+		return '';
 	}
 
 	$json_ld = array(
@@ -238,13 +189,6 @@ function fqj_maybe_print_faq_jsonld() {
 		'mainEntity' => $main_entities,
 	);
 
-	$script = '<script type="application/ld+json">' .
+	return '<script type="application/ld+json">' .
 		wp_json_encode( $json_ld, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_HEX_TAG | JSON_HEX_AMP ) . '</script>';
-
-	echo "\n<!-- FAQ JSON-LD injected by FAQ JSON-LD Manager plugin (generated) -->\n";
-	// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-	echo $script . "\n";
-
-	set_transient( $transient_key, $script, $cache_ttl );
 }
-add_action( 'wp_head', 'fqj_maybe_print_faq_jsonld', 1 );

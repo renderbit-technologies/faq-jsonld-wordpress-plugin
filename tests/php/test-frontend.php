@@ -115,6 +115,34 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 		$this->assertEqualsWithDelta( time() + 600, $timeout, 5 );
 	}
 
+	public function test_private_posts_render_without_cached_output() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$post = self::factory()->post->create( array( 'post_status' => 'private' ) );
+		$this->create_faq( 'Private?', 'Yes.', array( 'posts' => array( $post ) ) );
+		set_transient( fqj_cache_key( $post ), '__FQJ_EMPTY__' );
+
+		$html = $this->render_head_for( $post );
+		$json = $this->extract_json_ld( $html );
+
+		$this->assertSame( 'Private?', $json['mainEntity'][0]['name'], 'Never served from cache.' );
+		$this->assertStringContainsString( '(uncached)', $html );
+		$this->assertSame( '__FQJ_EMPTY__', get_transient( fqj_cache_key( $post ) ), 'Never written to cache.' );
+	}
+
+	public function test_draft_preview_renders_without_cached_output() {
+		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );
+		$post = self::factory()->post->create( array( 'post_status' => 'draft' ) );
+
+		$this->go_to( get_preview_post_link( $post ) );
+		ob_start();
+		fqj_maybe_print_faq_jsonld();
+		$html = ob_get_clean();
+
+		$this->assertTrue( is_preview() );
+		$this->assertStringContainsString( '(uncached, no output)', $html );
+		$this->assertFalse( get_transient( fqj_cache_key( $post ) ) );
+	}
+
 	public function test_post_type_mapping() {
 		$page = self::factory()->post->create( array( 'post_type' => 'page' ) );
 		$post = self::factory()->post->create();
@@ -149,37 +177,35 @@ class Test_FQJ_Frontend extends FQJ_TestCase {
 
 	public function test_url_mapping_matches_permalink() {
 		$post = self::factory()->post->create( array( 'post_name' => 'contact' ) );
-		$faq  = $this->create_faq( 'Where?', 'Here.', array( 'urls' => array( 'http://example.org/contact/?from=menu' ) ) );
-
-		// Drop the post-ID row the indexer adds so only the URL row can match.
-		global $wpdb;
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
-		$wpdb->delete(
-			fqj_table_name(),
-			array(
-				'faq_id'       => $faq,
-				'mapping_type' => 'post',
-			)
-		);
+		$this->create_faq( 'Where?', 'Here.', array( 'urls' => array( 'http://example.org/contact/?from=menu' ) ) );
 
 		$json = $this->extract_json_ld( $this->render_head_for( $post ) );
 		$this->assertSame( 'Where?', $json['mainEntity'][0]['name'] );
 	}
 
-	public function test_legacy_url_rows_with_trailing_slash_still_match() {
+	/**
+	 * Rows indexed before data version 3 hold absolute URLs, sometimes with a trailing slash. They keep
+	 * matching only until the migration has reindexed every FAQ.
+	 */
+	public function test_legacy_url_rows_match_only_while_migration_runs() {
 		$post = self::factory()->post->create( array( 'post_name' => 'legacy' ) );
-		$faq  = $this->create_faq( 'Old?', 'Yes.' );
-		fqj_insert_mappings(
-			$faq,
-			array(
+		foreach ( array( 'http://example.org/legacy/', 'http://example.org/legacy' ) as $value ) {
+			fqj_insert_mappings(
+				$this->create_faq( 'Old?', 'Yes.' ),
 				array(
-					'type'  => 'url',
-					'value' => 'http://example.org/legacy/',
-				),
-			)
-		);
+					array(
+						'type'  => 'url',
+						'value' => $value,
+					),
+				)
+			);
+		}
 
-		$this->assertNotNull( $this->extract_json_ld( $this->render_head_for( $post ) ) );
+		update_option( FQJ_DATA_VERSION_OPTION, '2' );
+		$this->assertCount( 2, fqj_faq_ids_for_post( $post ) );
+
+		update_option( FQJ_DATA_VERSION_OPTION, '3' );
+		$this->assertSame( array(), fqj_faq_ids_for_post( $post ) );
 	}
 
 	public function test_global_mapping_applies_everywhere() {

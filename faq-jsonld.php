@@ -3,7 +3,7 @@
  * Plugin Name: FAQ JSON-LD Manager
  * Plugin URI:  https://github.com/renderbit-technologies/faq-jsonld-wordpress-plugin
  * Description: Manage FAQ items as a custom post type and output FAQPage JSON-LD on the posts and pages they apply to.
- * Version:     3.0.1
+ * Version:     3.1.0
  * Requires at least: 6.5
  * Requires PHP: 7.2
  * Author:      Renderbit Technologies
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // phpcs:disable PSR1.Files.SideEffects
 
 // Keep in sync with the Version header above; used to version the plugin's own assets.
-define( 'FQJ_VERSION', '3.0.1' );
+define( 'FQJ_VERSION', '3.1.0' );
 // Upper bound for the invalidation batch size setting.
 define( 'FQJ_MAX_BATCH_SIZE', 5000 );
 define( 'FQJ_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
@@ -31,14 +31,17 @@ define( 'FQJ_DB_VERSION', '3' );
 define( 'FQJ_DB_VERSION_OPTION', 'fqj_db_version' );
 
 // Data migration version: bump to run a one-time reindex and cache purge on existing sites.
-define( 'FQJ_DATA_VERSION', '2' );
+define( 'FQJ_DATA_VERSION', '3' );
 define( 'FQJ_DATA_VERSION_OPTION', 'fqj_data_version' );
 define( 'FQJ_DATA_MIGRATION_CURSOR_OPTION', 'fqj_data_migration_cursor' );
+// URL associations rewritten by data migration 3, shown on the FAQ list screen until dismissed.
+define( 'FQJ_URL_MIGRATION_REPORT_OPTION', 'fqj_url_migration_report' );
 
 /**
  * Autoload includes
  */
 require_once FQJ_PLUGIN_DIR . 'includes/settings.php';
+require_once FQJ_PLUGIN_DIR . 'includes/coverage.php';
 require_once FQJ_PLUGIN_DIR . 'includes/indexer.php';
 require_once FQJ_PLUGIN_DIR . 'includes/queue.php';
 require_once FQJ_PLUGIN_DIR . 'includes/admin.php';

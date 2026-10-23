@@ -91,7 +91,7 @@ function fqj_admin_assets( $hook ) {
 			'nonce'    => wp_create_nonce( 'fqj_admin_nonce' ),
 			'post_id'  => get_the_ID(),
 			'i18n'     => array(
-				'urlsHelp'         => __( 'Enter one full URL per line (e.g. https://example.com/about/)', 'faq-jsonld' ),
+				'urlsHelp'         => __( 'Enter one URL per line (e.g. https://example.com/about/). The FAQ appears on whichever post has that permalink.', 'faq-jsonld' ),
 				'postsHelp'        => __( 'Search posts/pages and add multiple results.', 'faq-jsonld' ),
 				'postsPlaceholder' => __( 'Search posts by title...', 'faq-jsonld' ),
 				'postTypesHelp'    => __( 'Select post type(s) to associate this FAQ with.', 'faq-jsonld' ),
@@ -235,8 +235,9 @@ function fqj_save_meta_handler( $post_id, $post ) {
 	}
 	$payload = array();
 
-	// Drop any notice left over from an earlier save.
+	// Drop any notices left over from an earlier save.
 	delete_transient( 'fqj_rejected_urls_' . get_current_user_id() . '_' . $post_id );
+	delete_transient( 'fqj_unmatched_urls_' . get_current_user_id() . '_' . $post_id );
 
 	if ( 'urls' === $assoc_type ) {
 		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
@@ -260,6 +261,22 @@ function fqj_save_meta_handler( $post_id, $post ) {
 		$payload['urls'] = array_values( array_unique( $urls ) );
 		if ( $bad ) {
 			set_transient( 'fqj_rejected_urls_' . get_current_user_id() . '_' . $post_id, $bad, MINUTE_IN_SECONDS );
+		}
+
+		// Warn, never reject: a URL that is no post's permalink covers nothing until a post takes it.
+		$unmatched = array();
+		foreach ( $payload['urls'] as $url ) {
+			if ( fqj_post_for_url( $url ) ) {
+				continue;
+			}
+			$routed      = fqj_post_routed_from_url( $url );
+			$unmatched[] = array(
+				'url'        => $url,
+				'suggestion' => $routed ? (string) get_permalink( $routed ) : '',
+			);
+		}
+		if ( $unmatched ) {
+			set_transient( 'fqj_unmatched_urls_' . get_current_user_id() . '_' . $post_id, $unmatched, MINUTE_IN_SECONDS );
 		}
 	} elseif ( 'posts' === $assoc_type ) {
 		$post_ids = array();
@@ -321,6 +338,95 @@ function fqj_rejected_urls_notice() {
 	);
 }
 add_action( 'admin_notices', 'fqj_rejected_urls_notice' );
+
+/**
+ * Admin notice listing saved URLs of this FAQ that are not the permalink of any post on this site.
+ */
+function fqj_unmatched_urls_notice() {
+	$post_id = isset( $_GET['post'] ) ? absint( $_GET['post'] ) : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+	if ( ! $post_id ) {
+		return;
+	}
+	$key       = 'fqj_unmatched_urls_' . get_current_user_id() . '_' . $post_id;
+	$unmatched = get_transient( $key );
+	if ( empty( $unmatched ) || ! is_array( $unmatched ) ) {
+		return;
+	}
+	delete_transient( $key );
+
+	$items = '';
+	foreach ( $unmatched as $entry ) {
+		$items .= '<li><code>' . esc_html( $entry['url'] ) . '</code>';
+		if ( '' !== $entry['suggestion'] ) {
+			/* translators: %s: permalink of the post the URL leads to. */
+			$items .= ' ' . sprintf( esc_html__( '(did you mean %s?)', 'faq-jsonld' ), '<code>' . esc_html( $entry['suggestion'] ) . '</code>' );
+		}
+		$items .= '</li>';
+	}
+	printf(
+		'<div class="notice notice-warning is-dismissible"><p>%s</p><ul>%s</ul></div>',
+		esc_html__( 'These URLs were saved, but they are not the permalink of any post on this site, so the FAQ will not appear there:', 'faq-jsonld' ),
+		$items // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	);
+}
+add_action( 'admin_notices', 'fqj_unmatched_urls_notice' );
+
+/**
+ * Admin notice on the FAQ list screen listing URL associations rewritten by data migration 3.
+ */
+function fqj_url_migration_report_notice() {
+	$screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+	if ( ! $screen || 'edit-faq_item' !== $screen->id || ! current_user_can( 'edit_others_posts' ) ) {
+		return;
+	}
+	$report = get_option( FQJ_URL_MIGRATION_REPORT_OPTION );
+	if ( empty( $report ) || ! is_array( $report ) ) {
+		return;
+	}
+
+	$items = '';
+	foreach ( $report as $entry ) {
+		$faq  = '<a href="' . esc_url( (string) get_edit_post_link( $entry['faq_id'] ) ) . '">' . esc_html( get_the_title( $entry['faq_id'] ) ) . '</a>';
+		$new  = '<code>' . esc_html( $entry['new'] ) . '</code>';
+		$line = '' === $entry['old']
+			/* translators: 1: FAQ title, 2: added URL. */
+			? sprintf( esc_html__( '%1$s: added %2$s', 'faq-jsonld' ), $faq, $new )
+			/* translators: 1: FAQ title, 2: old URL, 3: new URL. */
+			: sprintf( esc_html__( '%1$s: %2$s became %3$s', 'faq-jsonld' ), $faq, '<code>' . esc_html( $entry['old'] ) . '</code>', $new );
+		$items .= '<li>' . $line . '</li>';
+	}
+	$dismiss = wp_nonce_url( admin_url( 'admin-post.php?action=fqj_dismiss_url_migration_report' ), 'fqj_dismiss_url_migration_report' );
+
+	printf(
+		'<div class="notice notice-info"><p>%s</p><ul>%s</ul><p><a class="button" href="%s">%s</a></p></div>',
+		esc_html__( 'FAQ JSON-LD now matches URL associations by the URL itself. To keep each FAQ on the posts it appeared on before, these URLs were updated:', 'faq-jsonld' ),
+		$items, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		esc_url( $dismiss ),
+		esc_html__( 'Dismiss', 'faq-jsonld' )
+	);
+}
+add_action( 'admin_notices', 'fqj_url_migration_report_notice' );
+
+/**
+ * Dismiss the URL migration report for everyone.
+ */
+function fqj_dismiss_url_migration_report() {
+	check_admin_referer( 'fqj_dismiss_url_migration_report' );
+	if ( ! current_user_can( 'edit_others_posts' ) ) {
+		wp_die( esc_html__( 'Permission denied', 'faq-jsonld' ), 403 );
+	}
+	delete_option( FQJ_URL_MIGRATION_REPORT_OPTION );
+}
+
+/**
+ * Handle the dismiss link, then return to the FAQ list.
+ */
+function fqj_admin_post_dismiss_url_migration_report() {
+	fqj_dismiss_url_migration_report();
+	wp_safe_redirect( admin_url( 'edit.php?post_type=faq_item' ) );
+	exit;
+}
+add_action( 'admin_post_fqj_dismiss_url_migration_report', 'fqj_admin_post_dismiss_url_migration_report' );
 
 /**
  * AJAX: search posts for Select2

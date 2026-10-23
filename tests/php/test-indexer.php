@@ -35,6 +35,18 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 			'plain page_id'      => array( 'https://example.com/?page_id=7&utm=x#a', 'https://example.com/?page_id=7' ),
 			'plain p differs'    => array( 'https://example.com/index.php?p=124', 'https://example.com/index.php/?p=124' ),
 			'unicode path'       => array( 'https://example.com/café/', 'https://example.com/café' ),
+			'internal path'      => array( 'http://example.org/about/', '/about' ),
+			'internal https www' => array( 'https://WWW.example.org/about/#x', '/about' ),
+			'internal home'      => array( 'http://example.org/', '/' ),
+			'internal bare home' => array( 'http://example.org', '/' ),
+			'internal plain p'   => array( 'http://example.org/?utm=x&p=12', '/?p=12' ),
+			'internal sorted'    => array( 'http://example.org/?page_id=3&p=12', '/?p=12&page_id=3' ),
+			'relative path'      => array( '/about/', '/about' ),
+			'relative home'      => array( '/', '/' ),
+			'relative plain p'   => array( '/?p=12', '/?p=12' ),
+			'other port'         => array( 'http://example.org:8080/about', 'http://example.org:8080/about' ),
+			'subdomain'          => array( 'http://shop.example.org/about', 'http://shop.example.org/about' ),
+			'protocol relative'  => array( '//example.org/about/', '/about' ),
 		);
 	}
 
@@ -144,6 +156,42 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 		$this->assertFalse( get_option( FQJ_DATA_MIGRATION_CURSOR_OPTION ) );
 	}
 
+	public function test_data_migration_restarts_cursor_left_by_an_older_migration() {
+		$ids = self::factory()->post->create_many( 3, array( 'post_type' => 'faq_item' ) );
+		foreach ( $ids as $faq ) {
+			update_post_meta( $faq, 'fqj_assoc_data_json', wp_json_encode( array( 'posts' => array( 5 ) ) ) );
+		}
+		delete_option( FQJ_DATA_VERSION_OPTION );
+		// Migration 2 stored a bare ID past every FAQ before the plugin was updated.
+		update_option( FQJ_DATA_MIGRATION_CURSOR_OPTION, max( $ids ), false );
+
+		fqj_run_data_migration();
+
+		$this->assertSame( FQJ_DATA_VERSION, get_option( FQJ_DATA_VERSION_OPTION ) );
+		foreach ( $ids as $faq ) {
+			$this->assertSame( array( array( 'mapping_type' => 'post', 'mapping_value' => '5' ) ), $this->get_mappings( $faq ) );
+		}
+	}
+
+	public function test_data_migration_cursor_records_its_version() {
+		add_filter( 'fqj_data_migration_batch_size', array( $this, 'tiny_batch' ) );
+		$ids = self::factory()->post->create_many( 3, array( 'post_type' => 'faq_item' ) );
+		sort( $ids );
+		delete_option( FQJ_DATA_VERSION_OPTION );
+		delete_option( FQJ_DATA_MIGRATION_CURSOR_OPTION );
+
+		fqj_run_data_migration();
+		remove_filter( 'fqj_data_migration_batch_size', array( $this, 'tiny_batch' ) );
+
+		$this->assertSame(
+			array(
+				'version' => FQJ_DATA_VERSION,
+				'cursor'  => $ids[1],
+			),
+			get_option( FQJ_DATA_MIGRATION_CURSOR_OPTION )
+		);
+	}
+
 	public function tiny_batch() {
 		return 2;
 	}
@@ -238,7 +286,7 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 		);
 	}
 
-	public function test_rebuild_with_url_payload_also_maps_internal_post() {
+	public function test_rebuild_with_url_payload_stores_internal_urls_relative_and_no_post_row() {
 		$target = self::factory()->post->create( array( 'post_name' => 'about-us' ) );
 		$faq    = $this->create_faq(
 			'Q',
@@ -255,11 +303,7 @@ class Test_FQJ_Indexer extends FQJ_TestCase {
 			array(
 				array(
 					'mapping_type'  => 'url',
-					'mapping_value' => 'http://example.org/about-us',
-				),
-				array(
-					'mapping_type'  => 'post',
-					'mapping_value' => (string) $target,
+					'mapping_value' => '/about-us',
 				),
 				array(
 					'mapping_type'  => 'url',

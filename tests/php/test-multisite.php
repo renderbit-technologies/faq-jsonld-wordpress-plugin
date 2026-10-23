@@ -218,4 +218,52 @@ class Test_FQJ_Multisite extends FQJ_Multisite_TestCase {
 		$this->assertSame( array(), $this->get_mappings( $faq ) );
 		$this->assertSame( array(), $this->get_queue() );
 	}
+
+	public function test_url_migration_runs_per_site_with_site_relative_urls() {
+		$this->network_activate_plugin();
+		$site_id = self::factory()->blog->create();
+
+		switch_to_blog( $site_id );
+		$this->set_permalink_structure( '/%postname%/' );
+		$post      = self::factory()->post->create( array( 'post_name' => 'about' ) );
+		$shortlink = home_url( '/?p=' . $post );
+		$faq       = $this->create_faq( 'Q', 'A' );
+		update_post_meta( $faq, 'fqj_assoc_data_json', wp_json_encode( array( 'urls' => array( $shortlink ) ) ) );
+		fqj_insert_mappings(
+			$faq,
+			array(
+				array(
+					'type'  => 'url',
+					'value' => $shortlink,
+				),
+				array(
+					'type'  => 'post',
+					'value' => $post,
+				),
+			)
+		);
+		update_option( FQJ_DATA_VERSION_OPTION, '2' );
+		fqj_run_data_migration();
+
+		$site_report   = get_option( FQJ_URL_MIGRATION_REPORT_OPTION );
+		$site_mappings = $this->get_mappings( $faq );
+		$site_matches  = fqj_faq_ids_for_post( $post );
+		$main_url      = fqj_normalize_url( network_home_url( '/about/' ) );
+		$permalink     = get_permalink( $post );
+		restore_current_blog();
+
+		$this->assertSame( $permalink, $site_report[0]['new'] );
+		$this->assertSame(
+			array(
+				array(
+					'mapping_type'  => 'url',
+					'mapping_value' => '/about',
+				),
+			),
+			$site_mappings
+		);
+		$this->assertSame( array( $faq ), $site_matches );
+		$this->assertSame( untrailingslashit( network_home_url( '/about/' ) ), $main_url, 'The main site is outside this site\'s root.' );
+		$this->assertFalse( get_option( FQJ_URL_MIGRATION_REPORT_OPTION ) );
+	}
 }

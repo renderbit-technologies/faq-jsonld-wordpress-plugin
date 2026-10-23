@@ -273,8 +273,8 @@ function fqj_log_invalidation_run( $processed_count, $sample_ids = array() ) {
 /**
  * Expand queued post_type/term jobs into per-post cache deletions, within a post budget.
  *
- * Each job walks post IDs in ascending order from its stored cursor and is deleted once exhausted. Only
- * published posts are considered, since only those are viewable (and cached) publicly.
+ * Each job walks the posts its mapping covers (fqj_posts_covered_by_mapping()) in ascending order from its
+ * stored cursor and is deleted once exhausted.
  *
  * @param int $budget Maximum number of posts to process.
  * @return int[] IDs processed.
@@ -299,35 +299,15 @@ function fqj_queue_process_jobs( $budget ) {
 
 		$remaining = $budget - $done_count;
 		$cursor    = (int) $job['job_cursor'];
-		$ids       = array();
+		$ids       = fqj_posts_covered_by_mapping(
+			array(
+				'type'  => $job['item_type'],
+				'value' => $job['item_value'],
+			),
+			$cursor,
+			$remaining
+		);
 
-		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-		if ( 'post_type' === $job['item_type'] ) {
-			$ids = $wpdb->get_col(
-				$wpdb->prepare(
-					"SELECT ID FROM {$wpdb->posts} WHERE post_type = %s AND post_status = 'publish' AND ID > %d ORDER BY ID ASC LIMIT %d",
-					$job['item_value'],
-					$cursor,
-					$remaining
-				)
-			);
-		} else {
-			$term = get_term( (int) $job['item_value'] );
-			if ( $term && ! is_wp_error( $term ) ) {
-				$ids = $wpdb->get_col(
-					$wpdb->prepare(
-						"SELECT p.ID FROM {$wpdb->posts} p INNER JOIN {$wpdb->term_relationships} tr ON tr.object_id = p.ID
-						WHERE tr.term_taxonomy_id = %d AND p.post_status = 'publish' AND p.ID > %d ORDER BY p.ID ASC LIMIT %d",
-						$term->term_taxonomy_id,
-						$cursor,
-						$remaining
-					)
-				);
-			}
-		}
-		// phpcs:enable
-
-		$ids = array_map( 'intval', (array) $ids );
 		foreach ( $ids as $pid ) {
 			delete_transient( fqj_cache_key( $pid ) );
 		}

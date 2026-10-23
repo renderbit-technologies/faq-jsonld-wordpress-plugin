@@ -137,18 +137,31 @@ function fqj_run_data_migration() {
 	}
 
 	$batch_size = max( 1, (int) apply_filters( 'fqj_data_migration_batch_size', 25 ) );
-	$cursor     = (int) get_option( FQJ_DATA_MIGRATION_CURSOR_OPTION, 0 );
-	$ids        = fqj_get_faq_ids_after( $cursor, $batch_size );
+	// The cursor belongs to one target version; a cursor left by an older migration restarts from the top.
+	$saved  = get_option( FQJ_DATA_MIGRATION_CURSOR_OPTION );
+	$cursor = is_array( $saved ) && isset( $saved['version'], $saved['cursor'] ) && FQJ_DATA_VERSION === $saved['version'] ? (int) $saved['cursor'] : 0;
+	$ids    = fqj_get_faq_ids_after( $cursor, $batch_size );
 
 	// The final purge bumps the cache generation, which invalidates all cached output on every backend,
 	// so there is no need to enqueue per-post invalidation here.
+	$from_version = (string) get_option( FQJ_DATA_VERSION_OPTION, '0' );
 	foreach ( $ids as $faq_id ) {
+		if ( version_compare( $from_version, '3', '<' ) ) {
+			fqj_migrate_url_associations( $faq_id );
+		}
 		fqj_rebuild_index_for_faq( $faq_id, false );
 		$cursor = $faq_id;
 	}
 
 	if ( count( $ids ) >= $batch_size ) {
-		update_option( FQJ_DATA_MIGRATION_CURSOR_OPTION, $cursor, false );
+		update_option(
+			FQJ_DATA_MIGRATION_CURSOR_OPTION,
+			array(
+				'version' => FQJ_DATA_VERSION,
+				'cursor'  => $cursor,
+			),
+			false
+		);
 		wp_schedule_single_event( time() + 10, 'fqj_data_migration' );
 		return;
 	}
@@ -158,6 +171,91 @@ function fqj_run_data_migration() {
 	update_option( FQJ_DATA_VERSION_OPTION, FQJ_DATA_VERSION );
 }
 add_action( 'fqj_data_migration', 'fqj_run_data_migration' );
+
+/**
+ * Data migration 3: keep URL associations that only matched through the `post` row indexing used to add.
+ *
+ * Must run before the FAQ is reindexed, which deletes those rows. Every change is added to the URL
+ * migration report shown on the FAQ list screen.
+ *
+ * @param int $faq_id The FAQ ID.
+ */
+function fqj_migrate_url_associations( $faq_id ) {
+	$payload = json_decode( (string) get_post_meta( $faq_id, 'fqj_assoc_data_json', true ), true );
+	if ( ! is_array( $payload ) || empty( $payload['urls'] ) || ! is_array( $payload['urls'] ) ) {
+		return;
+	}
+
+	// Posts the old index covered through a URL rather than through the FAQ's own post associations.
+	$explicit = isset( $payload['posts'] ) && is_array( $payload['posts'] ) ? array_map( 'intval', $payload['posts'] ) : array();
+	$old_ids  = array();
+	foreach ( fqj_get_mappings_for_faq( $faq_id ) as $m ) {
+		$pid = (int) $m['value'];
+		if ( 'post' === $m['type'] && $pid > 0 && ! in_array( $pid, $explicit, true ) ) {
+			$old_ids[ $pid ] = $pid;
+		}
+	}
+
+	$urls     = array_values( $payload['urls'] );
+	$dead     = array();
+	$rewrites = array();
+	foreach ( $urls as $i => $url ) {
+		$pid = fqj_post_for_url( $url );
+		if ( $pid ) {
+			unset( $old_ids[ $pid ] );
+			continue;
+		}
+
+		// A shortlink, the front page's slug URL or an old slug still routes to the post it used to cover.
+		$pid = fqj_post_routed_from_url( $url );
+		if ( $pid && isset( $old_ids[ $pid ] ) ) {
+			$urls[ $i ] = get_permalink( $pid );
+			$rewrites[] = array( $url, $urls[ $i ] );
+			unset( $old_ids[ $pid ] );
+			continue;
+		}
+
+		$dead[] = $i;
+	}
+
+	$leftover = array();
+	foreach ( $old_ids as $pid ) {
+		$permalink = get_post( $pid ) ? get_permalink( $pid ) : false;
+		if ( $permalink ) {
+			$leftover[] = $permalink;
+		}
+	}
+
+	if ( 1 === count( $dead ) && 1 === count( $leftover ) ) {
+		// Exactly one dead URL and one unexplained post: most likely the post was renamed.
+		$rewrites[]       = array( $urls[ $dead[0] ], $leftover[0] );
+		$urls[ $dead[0] ] = $leftover[0];
+	} else {
+		// Ambiguous: keep the dead URLs (the save warning flags them) and add each post's permalink.
+		foreach ( $leftover as $permalink ) {
+			$urls[]     = $permalink;
+			$rewrites[] = array( '', $permalink );
+		}
+	}
+
+	if ( ! $rewrites ) {
+		return;
+	}
+
+	$payload['urls'] = array_values( array_unique( $urls ) );
+	update_post_meta( $faq_id, 'fqj_assoc_data_json', wp_slash( wp_json_encode( $payload ) ) );
+
+	$report = get_option( FQJ_URL_MIGRATION_REPORT_OPTION, array() );
+	$report = is_array( $report ) ? $report : array();
+	foreach ( $rewrites as $rewrite ) {
+		$report[] = array(
+			'faq_id' => (int) $faq_id,
+			'old'    => $rewrite[0],
+			'new'    => $rewrite[1],
+		);
+	}
+	fqj_update_option_no_autoload( FQJ_URL_MIGRATION_REPORT_OPTION, $report );
+}
 
 /**
  * Schedule the data migration when the stored data version is older than the code.
@@ -230,49 +328,6 @@ function fqj_get_mappings_for_faq( $faq_id ) {
 }
 
 /**
- * Query args that identify a single post when permalinks are plain (e.g. `?p=123`, `?book=slug`).
- *
- * @return string[]
- */
-function fqj_identifying_query_args() {
-	$args = array( 'p', 'page_id', 'attachment_id' );
-	foreach ( get_post_types( array( 'publicly_queryable' => true ), 'objects' ) as $type ) {
-		if ( is_string( $type->query_var ) && '' !== $type->query_var ) {
-			$args[] = $type->query_var;
-		}
-	}
-
-	return array_values( array_unique( $args ) );
-}
-
-/**
- * Normalize a URL for mapping storage and lookup: drop fragment and trailing slash, and drop the
- * query string except for args that identify a post (plain permalinks), so `/?p=1` and `/?p=2` differ.
- *
- * Index and frontend lookup must use the same shape since mappings are compared with exact `=`.
- *
- * @param string $url The URL.
- * @return string
- */
-function fqj_normalize_url( $url ) {
-	$url   = (string) $url;
-	$parts = explode( '?', (string) strtok( $url, '#' ), 2 );
-	$base  = rtrim( $parts[0], '/' );
-
-	if ( isset( $parts[1] ) && '' !== $parts[1] ) {
-		parse_str( $parts[1], $query );
-		$keep = array_intersect_key( $query, array_flip( fqj_identifying_query_args() ) );
-		$keep = array_filter( $keep, 'is_scalar' );
-		if ( $keep ) {
-			ksort( $keep );
-			$base .= '/?' . http_build_query( $keep );
-		}
-	}
-
-	return $base;
-}
-
-/**
  * Build mapping rows from saved payload and index them
  * payload is array with keys 'urls', 'posts', 'post_types', 'terms', 'global'
  *
@@ -296,18 +351,11 @@ function fqj_rebuild_index_for_faq( $faq_id, $enqueue = true ) {
 
 	if ( isset( $payload['urls'] ) && is_array( $payload['urls'] ) ) {
 		foreach ( $payload['urls'] as $u ) {
+			// A URL association covers whichever post is at the URL now, so no post row (ADR-0001).
 			$mappings[] = array(
 				'type'  => 'url',
 				'value' => fqj_normalize_url( $u ),
 			);
-			// also map internal URLs to post IDs for faster lookup.
-			$pid = url_to_postid( $u );
-			if ( $pid ) {
-				$mappings[] = array(
-					'type'  => 'post',
-					'value' => intval( $pid ),
-				);
-			}
 		}
 	}
 
@@ -378,7 +426,8 @@ function fqj_enqueue_invalidation_for_mappings( $mappings ) {
 				$post_ids_to_enqueue[] = intval( $m['value'] );
 				break;
 			case 'url':
-				$pid = url_to_postid( $m['value'] );
+				// item_value is VARCHAR(64), so URLs are resolved to a post now rather than queued.
+				$pid = fqj_post_for_url( $m['value'] );
 				if ( $pid ) {
 					$post_ids_to_enqueue[] = intval( $pid );
 				}
@@ -468,51 +517,3 @@ function fqj_on_faq_before_delete( $post_id, $post = null ) {
 	fqj_delete_mappings_for_faq( $post_id );
 }
 add_action( 'before_delete_post', 'fqj_on_faq_before_delete', 10, 2 );
-
-/**
- * Drop a post's cached output when its terms change.
- *
- * @param int    $object_id  Object ID.
- * @param array  $terms      Terms passed.
- * @param array  $tt_ids     New term taxonomy IDs.
- * @param string $taxonomy   Taxonomy.
- * @param bool   $append     Whether terms were appended.
- * @param array  $old_tt_ids Previous term taxonomy IDs.
- */
-function fqj_on_object_terms_set( $object_id, $terms, $tt_ids, $taxonomy, $append, $old_tt_ids ) {
-	$type = get_post_type( $object_id );
-	if ( ! $type || 'faq_item' === $type || wp_is_post_revision( $object_id ) ) {
-		return;
-	}
-	if ( ! $append ) {
-		$new = array_map( 'intval', (array) $tt_ids );
-		$old = array_map( 'intval', (array) $old_tt_ids );
-		sort( $new );
-		sort( $old );
-		if ( $new === $old ) {
-			return;
-		}
-	}
-	delete_transient( fqj_cache_key( $object_id ) );
-}
-add_action( 'set_object_terms', 'fqj_on_object_terms_set', 10, 6 );
-
-/**
- * Drop a post's cached output when its permalink or visibility changes.
- *
- * @param int     $post_id     Post ID.
- * @param WP_Post $post_after  Post after the update.
- * @param WP_Post $post_before Post before the update.
- */
-function fqj_on_post_permalink_change( $post_id, $post_after, $post_before ) {
-	if ( 'faq_item' === $post_after->post_type || wp_is_post_revision( $post_id ) ) {
-		return;
-	}
-	if ( $post_after->post_name === $post_before->post_name
-		&& (int) $post_after->post_parent === (int) $post_before->post_parent
-		&& $post_after->post_status === $post_before->post_status ) {
-		return;
-	}
-	delete_transient( fqj_cache_key( $post_id ) );
-}
-add_action( 'post_updated', 'fqj_on_post_permalink_change', 10, 3 );

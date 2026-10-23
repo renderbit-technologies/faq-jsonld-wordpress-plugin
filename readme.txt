@@ -4,7 +4,7 @@ Tags: faq, schema, json-ld, structured data, seo
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 7.2
-Stable tag: 3.0.1
+Stable tag: 3.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
 
@@ -69,6 +69,15 @@ Its options, transients, scheduled events, post meta and mapping table are remov
 
 == Changelog ==
 
+= 3.1.0 =
+* URL associations now mean the URL itself: a FAQ shows on whichever post has that permalink now. Before, saving a URL also tied the FAQ to the post found there, so it followed that post when it was renamed and appeared on shortlinks and the front page's slug URL.
+* URLs on your own site are stored relative to the site root, so moving between `http` and `https`, adding or dropping `www.`, or changing domain keeps them working.
+* Upgrading rewrites URL associations that only matched through the old behaviour (shortlinks, the front page's slug URL, renamed posts, URLs from an earlier permalink structure) to the post's current permalink. The FAQ list screen lists every change until an editor dismisses it.
+* Saving a URL that is not the permalink of a post on this site, including any external URL, shows a warning, with the right permalink when the URL leads to a post.
+* Changing the permalink structure, category or tag base, or the site address clears all cached output.
+* Private posts and previews no longer get cached output.
+* With plain permalinks, URL associations to custom post types now clear their cached output on change.
+
 = 3.0.1 =
 * First release on WordPress.org.
 * Database queries pass table names through `$wpdb->prepare()` identifier placeholders.
@@ -82,6 +91,9 @@ Its options, transients, scheduled events, post meta and mapping table are remov
 * Uninstall, deactivation and multisite handling are complete.
 
 == Upgrade Notice ==
+
+= 3.1.0 =
+URL associations now match the URL itself. The upgrade rewrites URLs that only matched the old way and lists every change on the FAQ list screen.
 
 = 3.0.1 =
 First release on WordPress.org. No changes to stored data.

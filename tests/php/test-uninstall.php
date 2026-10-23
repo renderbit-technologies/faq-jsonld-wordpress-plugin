@@ -64,6 +64,8 @@ class Test_FQJ_Uninstall extends FQJ_TestCase {
 		global $wpdb;
 
 		update_option( FQJ_OPTION_KEY, array( 'cache_ttl' => 60 ) );
+		fqj_update_option_no_autoload( FQJ_URL_MIGRATION_REPORT_OPTION, array( array( 'faq_id' => 1, 'old' => '', 'new' => '/x' ) ) );
+		set_transient( 'fqj_unmatched_urls_1_2', array( 'x' ), 600 );
 		$key = fqj_cache_key( 1 );
 		set_transient( $key, 'x', 600 );
 		set_transient( 'keep_me', 'y' );
@@ -74,6 +76,8 @@ class Test_FQJ_Uninstall extends FQJ_TestCase {
 		$this->assertFalse( get_transient( $key ) );
 		$this->assertFalse( get_option( '_transient_timeout_' . $key ) );
 		$this->assertFalse( get_option( 'fqj_cache_gen' ) );
+		$this->assertFalse( get_option( FQJ_URL_MIGRATION_REPORT_OPTION ) );
+		$this->assertFalse( get_transient( 'fqj_unmatched_urls_1_2' ) );
 		$this->assertSame( 'y', get_transient( 'keep_me' ) );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
 		$this->assertNull( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', fqj_table_name() ) ) );
