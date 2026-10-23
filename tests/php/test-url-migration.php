@@ -176,6 +176,19 @@ class Test_FQJ_URL_Migration extends FQJ_TestCase {
 		$this->assertSame( array(), $this->report() );
 	}
 
+	public function test_url_routing_to_a_post_it_never_covered_is_not_rewritten() {
+		$post      = self::factory()->post->create( array( 'post_name' => 'newcomer' ) );
+		$shortlink = home_url( '/?p=' . $post );
+		// Saved before the post existed, so the old indexer wrote no post row for it.
+		$faq = $this->create_legacy_faq( array( $shortlink ), array() );
+
+		$this->migrate();
+
+		$this->assertSame( array( $shortlink ), $this->saved_urls( $faq ) );
+		$this->assertSame( array(), $this->report() );
+		$this->assertSame( array(), fqj_faq_ids_for_post( $post ) );
+	}
+
 	public function test_plain_permalinks_keep_query_urls_and_rewrite_old_pretty_ones() {
 		$post   = self::factory()->post->create( array( 'post_name' => 'plain' ) );
 		$pretty = get_permalink( $post );
