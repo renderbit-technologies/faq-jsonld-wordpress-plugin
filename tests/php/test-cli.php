@@ -80,4 +80,28 @@ class Test_RFSD_Cli extends RFSD_TestCase {
 		$this->cli->queue_info( array(), array() );
 		$this->assertSame( 'Queue length: 2', $this->last_success() );
 	}
+
+	/**
+	 * WP-CLI names a subcommand after its method unless @subcommand says otherwise; the readme documents the
+	 * hyphenated names.
+	 *
+	 * @dataProvider subcommand_provider
+	 *
+	 * @param string $method     Method name.
+	 * @param string $subcommand Documented subcommand.
+	 */
+	public function test_subcommands_use_the_documented_names( $method, $subcommand ) {
+		$doc = ( new ReflectionMethod( 'RFSD\Rfsd_Cli', $method ) )->getDocComment();
+		$this->assertStringContainsString( "@subcommand {$subcommand}\n", $doc );
+		$this->assertStringContainsString( "@alias {$method}\n", $doc, 'The underscore name keeps working.' );
+		$this->assertStringContainsString( "`wp rfsd {$subcommand}", file_get_contents( RFSD_PLUGIN_DIR . 'readme.txt' ) );
+	}
+
+	public function subcommand_provider() {
+		return array(
+			array( 'purge_transients', 'purge-transients' ),
+			array( 'process_queue', 'process-queue' ),
+			array( 'queue_info', 'queue-info' ),
+		);
+	}
 }
