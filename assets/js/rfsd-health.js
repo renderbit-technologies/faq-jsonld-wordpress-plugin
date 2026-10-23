@@ -1,3 +1,4 @@
+/* global rfsdHealth */
 jQuery(document).ready(function ($) {
   // Strings come from wp_localize_script (rfsdHealth.i18n); English is the fallback.
   var i18n = $.extend(

@@ -1,3 +1,4 @@
+/* global rfsdAdmin */
 jQuery(document).ready(function ($) {
   var $assocType = $("#rfsd_assoc_type");
   var $container = $("#rfsd_assoc_container");
@@ -161,12 +162,12 @@ jQuery(document).ready(function ($) {
         }
       });
       if (data.terms && data.terms.length) {
-        var select = $("#rfsd_assoc_terms_select");
+        var termsSelect = $("#rfsd_assoc_terms_select");
         data.terms.forEach(function (t) {
           var option = new Option(t.text, t.id, true, true);
-          select.append(option);
+          termsSelect.append(option);
         });
-        select.trigger("change");
+        termsSelect.trigger("change");
       }
     } else if (type === "global") {
       $container.append(el("p").text(i18n.globalHelp));
