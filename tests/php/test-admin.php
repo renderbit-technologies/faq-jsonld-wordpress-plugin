@@ -507,6 +507,8 @@ class Test_RFSD_Admin extends RFSD_TestCase {
 
 		$this->assertTrue( wp_style_is( 'rfsd-select2-css', 'enqueued' ) );
 		$this->assertFalse( wp_script_is( 'rfsd-select2-js', 'enqueued' ) );
+		$inline = implode( '', (array) wp_styles()->get_data( 'rfsd-select2-css', 'after' ) );
+		$this->assertStringContainsString( '.select2-results__option--highlighted[aria-selected]', $inline, 'Select2 4.0 result states stay styled.' );
 		wp_dequeue_script( 'selectWoo' );
 		wp_deregister_script( 'selectWoo' );
 	}

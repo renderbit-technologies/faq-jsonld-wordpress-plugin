@@ -106,6 +106,8 @@ function rfsd_legacy_storage_names() {
 			'fqj_settings'             => RFSD_OPTION_KEY,
 			'fqj_url_migration_report' => RFSD_URL_MIGRATION_REPORT_OPTION,
 		),
+		// Options only the old plugin writes; without one of them a faq_item post belongs to some other plugin.
+		'evidence_options'    => array( 'fqj_db_version', 'fqj_settings' ),
 		'data_version_option' => 'fqj_data_version',
 		'mappings_table'      => $wpdb->prefix . 'fqj_mappings',
 		'cron_hooks'          => array( 'fqj_process_invalidation_queue', 'fqj_data_migration' ),
@@ -114,6 +116,8 @@ function rfsd_legacy_storage_names() {
 
 /**
  * Import the current site's FAQs from the earlier FAQ JSON-LD Manager plugin, once per site.
+ *
+ * Only sites the old plugin was set up on are touched, so another plugin's `faq_item` posts stay its own.
  *
  * FAQ posts and their association meta are moved, so the old plugin stops printing them (no duplicate
  * FAQPage output) and deleting it afterwards cannot remove them. Settings, the mapping rows and the data
@@ -127,7 +131,15 @@ function rfsd_import_legacy_data() {
 		return;
 	}
 
-	$legacy = rfsd_legacy_storage_names();
+	$legacy    = rfsd_legacy_storage_names();
+	$installed = false;
+	foreach ( $legacy['evidence_options'] as $name ) {
+		$installed = $installed || false !== get_option( $name );
+	}
+	if ( ! $installed ) {
+		update_option( RFSD_LEGACY_IMPORT_OPTION, '1' );
+		return;
+	}
 	rfsd_maybe_upgrade_db();
 
 	// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.SlowDBQuery.slow_db_query_meta_key

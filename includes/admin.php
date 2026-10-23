@@ -73,6 +73,14 @@ function rfsd_admin_assets( $hook ) {
 				array(),
 				'4.1.0'
 			);
+			// The reused script may be Select2 4.0 (or selectWoo), which marks results with aria-selected instead
+			// of the 4.1 state classes the bundled stylesheet targets.
+			wp_add_inline_style(
+				'rfsd-select2-css',
+				'.select2-results__option[aria-selected]{cursor:pointer}'
+				. '.select2-container--default .select2-results__option[aria-selected=true]{background-color:#ddd}'
+				. '.select2-container--default .select2-results__option--highlighted[aria-selected]{background-color:#5897fb;color:#fff}'
+			);
 		}
 	}
 

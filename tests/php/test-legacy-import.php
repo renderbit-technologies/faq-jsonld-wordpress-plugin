@@ -75,6 +75,8 @@ class Test_RFSD_Legacy_Import extends RFSD_TestCase {
 		);
 		update_post_meta( $faq, 'fqj_assoc_data_json', wp_slash( wp_json_encode( $payload ) ) );
 		update_post_meta( $faq, 'fqj_assoc_type', 'urls' );
+		// The old plugin's activation records its schema version.
+		update_option( 'fqj_db_version', '3' );
 
 		return $faq;
 	}
@@ -102,6 +104,15 @@ class Test_RFSD_Legacy_Import extends RFSD_TestCase {
 		$this->assertSame( '1', get_option( RFSD_LEGACY_IMPORT_OPTION ) );
 		$this->assertSame( $data_version, get_option( RFSD_DATA_VERSION_OPTION ) );
 		$this->assertFalse( rfsd_has_faq_items() );
+	}
+
+	public function test_another_plugins_faq_item_posts_are_left_alone() {
+		$other = self::factory()->post->create( array( 'post_type' => $this->legacy['post_type'] ) );
+
+		rfsd_import_legacy_data();
+
+		$this->assertSame( $this->legacy['post_type'], get_post( $other )->post_type );
+		$this->assertSame( '1', get_option( RFSD_LEGACY_IMPORT_OPTION ) );
 	}
 
 	public function test_import_from_data_version_2_keeps_url_associations() {

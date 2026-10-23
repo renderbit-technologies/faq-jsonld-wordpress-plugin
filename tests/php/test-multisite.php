@@ -106,6 +106,7 @@ class Test_RFSD_Multisite extends RFSD_Multisite_TestCase {
 			switch_to_blog( $id );
 			$faqs[ $id ] = self::factory()->post->create( array( 'post_type' => 'faq_item' ) );
 			delete_option( RFSD_LEGACY_IMPORT_OPTION );
+			update_option( 'fqj_db_version', '3' );
 			restore_current_blog();
 		}
 
